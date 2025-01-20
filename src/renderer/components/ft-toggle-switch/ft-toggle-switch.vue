@@ -3,7 +3,8 @@
     class="switch-ctn"
     :class="{
       compact,
-      disabled: disabled
+      disabled: disabled,
+      containsTooltip: tooltip.length > 0
     }"
   >
     <input
@@ -14,7 +15,7 @@
       class="switch-input"
       :checked="currentValue"
       :disabled="disabled"
-      @change="$emit('change', currentValue)"
+      @change="change"
     >
     <label
       :for="id"
@@ -26,12 +27,13 @@
       <ft-tooltip
         v-if="tooltip !== ''"
         class="selectTooltip"
-        position="bottom-left"
+        :position="tooltipPosition"
         :tooltip="tooltip"
+        :allow-newlines="tooltipAllowNewlines"
       />
     </label>
   </div>
 </template>
 
 <script src="./ft-toggle-switch.js" />
-<style scoped lang="sass" src="./ft-toggle-switch.sass" />
+<style scoped lang="scss" src="./ft-toggle-switch.scss" />

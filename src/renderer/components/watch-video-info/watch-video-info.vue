@@ -1,49 +1,26 @@
 <template>
   <ft-card class="watchVideoInfo">
     <div>
-      <p
+      <h1
         class="videoTitle"
       >
         {{ title }}
-      </p>
+      </h1>
       <div
-        class="channelInformation"
+        v-if="isUnlisted"
+        class="unlistedBadge"
       >
-        <div
-          class="profileRow"
-        >
-          <div>
-            <img
-              :src="channelThumbnail"
-              class="channelThumbnail"
-              @click="goToChannel"
-            >
-          </div>
-          <div>
-            <div
-              class="channelName"
-              @click="goToChannel"
-            >
-              {{ channelName }}
-            </div>
-            <ft-button
-              v-if="!hideUnsubscribeButton"
-              :label="subscribedText"
-              class="subscribeButton"
-              background-color="var(--primary-color)"
-              text-color="var(--text-with-main-color)"
-              @click="handleSubscription"
-            />
-          </div>
-        </div>
+        {{ $t('Video.Unlisted') }}
       </div>
     </div>
-    <div>
-      <div class="datePublished">
+    <div class="videoMetrics">
+      <div class="datePublishedAndViewCount">
         {{ publishedString }} {{ dateString }}
-      </div>
-      <div class="viewCount">
-        {{ parsedViewCount }}
+        <template
+          v-if="!hideVideoViews"
+        >
+          <span class="seperator">• </span><span class="videoViews">{{ parsedViewCount }}</span>
+        </template>
       </div>
       <div
         v-if="!hideVideoLikesAndDislikes"
@@ -52,9 +29,7 @@
         <div
           class="likeSection"
         >
-          <div>
-            <span class="likeCount"><font-awesome-icon icon="thumbs-up" /> {{ parsedLikeCount }}</span>
-          </div>
+          <span class="likeCount"><font-awesome-icon :icon="['fas', 'thumbs-up']" /> {{ parsedLikeCount }}</span>
         </div>
       </div>
       <!--
@@ -71,47 +46,91 @@
             :style="{ background: `linear-gradient(to right, var(--accent-color) ${likePercentageRatio}%, #9E9E9E ${likePercentageRatio}%` }"
           />
           <div>
-            <span class="likeCount"><font-awesome-icon icon="thumbs-up" /> {{ parsedLikeCount }}</span>
-            <span class="dislikeCount"><font-awesome-icon icon="thumbs-down" /> {{ parsedDislikeCount }}</span>
+            <span class="likeCount"><font-awesome-icon :icon="['fas', 'thumbs-up']" /> {{ parsedLikeCount }}</span>
+            <span class="dislikeCount"><font-awesome-icon :icon="['fas', 'thumbs-down']" /> {{ parsedDislikeCount }}</span>
           </div>
         </div>
       </div>
       -->
+    </div>
+    <div class="videoButtons">
+      <div
+        class="profileRow"
+      >
+        <div>
+          <router-link
+            :to="`/channel/${channelId}`"
+          >
+            <img
+              :src="channelThumbnail"
+              class="channelThumbnail"
+              alt=""
+            >
+          </router-link>
+        </div>
+        <div>
+          <router-link
+            :to="`/channel/${channelId}`"
+            class="channelName"
+          >
+            {{ channelName }}
+          </router-link>
+          <ft-subscribe-button
+            v-if="!hideUnsubscribeButton"
+            :channel-id="channelId"
+            :channel-name="channelName"
+            :channel-thumbnail="channelThumbnail"
+            :subscription-count-text="subscriptionCountText"
+          />
+        </div>
+      </div>
       <div class="videoOptions">
         <ft-icon-button
-          v-if="!isUpcoming"
-          :title="$t('Video.Save Video')"
-          icon="star"
+          v-if="showPlaylists && !isUpcoming"
+          :title="$t('User Playlists.Add to Playlist')"
+          :icon="['fas', 'plus']"
           class="option"
-          :theme="favoriteIconTheme"
-          @click="toggleSave"
+          theme="base"
+          @click="togglePlaylistPrompt"
+        />
+        <ft-icon-button
+          v-if="isQuickBookmarkEnabled"
+          :title="quickBookmarkIconText"
+          :icon="isInQuickBookmarkPlaylist ? ['fas', 'check'] : ['fas', 'bookmark']"
+          class="quickBookmarkVideoIcon"
+          :class="{
+            bookmarked: isInQuickBookmarkPlaylist,
+          }"
+          :theme="quickBookmarkIconTheme"
+          @click="toggleQuickBookmarked"
         />
         <ft-icon-button
           v-if="externalPlayer !== ''"
-          :title="$t('Video.External Player.OpenInTemplate').replace('$', externalPlayer)"
-          icon="external-link-alt"
+          :title="$t('Video.External Player.OpenInTemplate', { externalPlayer })"
+          :icon="['fas', 'external-link-alt']"
           class="option"
           theme="secondary"
           @click="handleExternalPlayer"
         />
         <ft-icon-button
           v-if="!isUpcoming && downloadLinks.length > 0"
+          ref="downloadButton"
           :title="$t('Video.Download Video')"
           class="option"
           theme="secondary"
-          icon="download"
+          :icon="['fas', 'download']"
           :return-index="true"
           :dropdown-options="downloadLinkOptions"
           @click="handleDownload"
         />
         <ft-icon-button
           v-if="!isUpcoming"
-          :title="$t('Change Format.Change Video Formats')"
+          :title="$t('Change Format.Change Media Formats')"
           class="option"
           theme="secondary"
-          icon="file-video"
+          :icon="['fas', 'file-video']"
           :dropdown-options="formatTypeOptions"
-          @click="handleFormatChange"
+          @click="changeFormat($event)"
         />
         <ft-share-button
           v-if="!hideSharingActions"
@@ -126,4 +145,4 @@
 </template>
 
 <script src="./watch-video-info.js" />
-<style scoped src="./watch-video-info.sass" lang="sass" />
+<style scoped src="./watch-video-info.scss" lang="scss" />

@@ -1,19 +1,24 @@
-import $ from 'jquery'
-import fs from 'fs'
+import { IpcChannels } from '../../../constants'
+import { base64EncodeUtf8, createWebURL, fetchWithTimeout, randomArrayItem } from '../../helpers/utils'
 
 const state = {
   currentInvidiousInstance: '',
-  invidiousInstancesList: null,
-  isGetChannelInfoRunning: false
+  currentInvidiousInstanceAuthorization: null,
+  currentInvidiousInstanceUrl: '',
+  invidiousInstancesList: null
 }
 
 const getters = {
-  getIsGetChannelInfoRunning(state) {
-    return state.isGetChannelInfoRunning
-  },
-
   getCurrentInvidiousInstance(state) {
     return state.currentInvidiousInstance
+  },
+
+  getCurrentInvidiousInstanceUrl(state) {
+    return state.currentInvidiousInstanceUrl
+  },
+
+  getCurrentInvidiousInstanceAuthorization(state) {
+    return state.currentInvidiousInstanceAuthorization
   },
 
   getInvidiousInstancesList(state) {
@@ -22,129 +27,93 @@ const getters = {
 }
 
 const actions = {
-  async fetchInvidiousInstances({ commit }, payload) {
-    const requestUrl = 'https://api.invidious.io/instances.json'
+  async fetchInvidiousInstancesFromFile({ commit }) {
+    const url = createWebURL('/static/invidious-instances.json')
 
-    let response
-    let instances = []
-    try {
-      response = await $.getJSON(requestUrl)
-      instances = response.filter((instance) => {
-        if (instance[0].includes('.onion') || instance[0].includes('.i2p')) {
-          return false
-        } else {
-          return true
-        }
-      }).map((instance) => {
-        return instance[1].uri.replace(/\/$/, '')
-      })
-    } catch (err) {
-      console.log(err)
-      // Starts fallback strategy: read from static file
-      // And fallback to hardcoded entry(s) if static file absent
-      const fileName = 'invidious-instances.json'
-      /* eslint-disable-next-line */
-      const fileLocation = payload.isDev ? './static/' : `${__dirname}/static/`
-      if (fs.existsSync(`${fileLocation}${fileName}`)) {
-        console.log('reading static file for invidious instances')
-        const fileData = fs.readFileSync(`${fileLocation}${fileName}`)
-        instances = JSON.parse(fileData).map((entry) => {
-          return entry.url
-        })
-      } else {
-        console.log('unable to read static file for invidious instances')
-        instances = [
-          'https://invidious.snopyta.org',
-          'https://invidious.kavin.rocks/'
-        ]
-      }
-    }
+    const fileData = await (await fetch(url)).json()
+    const instances = fileData.filter(e => {
+      return process.env.SUPPORTS_LOCAL_API || e.cors
+    }).map(e => {
+      return e.url
+    })
 
     commit('setInvidiousInstancesList', instances)
   },
 
+  /// fetch invidious instances from site and overwrite static file.
+  async fetchInvidiousInstances({ commit }) {
+    const requestUrl = 'https://api.invidious.io/instances.json'
+    try {
+      const response = await fetchWithTimeout(15_000, requestUrl)
+      const json = await response.json()
+      const instances = json.filter((instance) => {
+        return !(instance[0].includes('.onion') ||
+          instance[0].includes('.i2p') ||
+          !instance[1].api ||
+          (!process.env.SUPPORTS_LOCAL_API && !instance[1].cors))
+      }).map((instance) => {
+        return instance[1].uri.replace(/\/$/, '')
+      })
+
+      if (instances.length !== 0) {
+        commit('setInvidiousInstancesList', instances)
+      } else {
+        console.warn('using static file for invidious instances')
+      }
+    } catch (err) {
+      if (err.name === 'TimeoutError') {
+        console.error('Fetching the Invidious instance list timed out after 15 seconds. Falling back to local copy.')
+      } else {
+        console.error(err)
+      }
+    }
+  },
+
   setRandomCurrentInvidiousInstance({ commit, state }) {
     const instanceList = state.invidiousInstancesList
-    const randomIndex = Math.floor(Math.random() * instanceList.length)
-    commit('setCurrentInvidiousInstance', instanceList[randomIndex])
-  },
-
-  invidiousAPICall({ state }, payload) {
-    return new Promise((resolve, reject) => {
-      const requestUrl = state.currentInvidiousInstance + '/api/v1/' + payload.resource + '/' + payload.id + '?' + $.param(payload.params)
-
-      $.getJSON(requestUrl, (response) => {
-        resolve(response)
-      }).fail((xhr, textStatus, error) => {
-        console.log(xhr)
-        console.log(textStatus)
-        console.log(requestUrl)
-        console.log(error)
-        reject(xhr)
-      })
-    })
-  },
-
-  invidiousGetChannelInfo({ commit, dispatch }, channelId) {
-    return new Promise((resolve, reject) => {
-      commit('toggleIsGetChannelInfoRunning')
-
-      const payload = {
-        resource: 'channels',
-        id: channelId,
-        params: {}
-      }
-
-      dispatch('invidiousAPICall', payload).then((response) => {
-        resolve(response)
-      }).catch((xhr) => {
-        console.log('found an error')
-        console.log(xhr)
-        commit('toggleIsGetChannelInfoRunning')
-        reject(xhr)
-      })
-    })
-  },
-
-  invidiousGetPlaylistInfo({ commit, dispatch }, payload) {
-    return new Promise((resolve, reject) => {
-      dispatch('invidiousAPICall', payload).then((response) => {
-        resolve(response)
-      }).catch((xhr) => {
-        console.log('found an error')
-        console.log(xhr)
-        commit('toggleIsGetChannelInfoRunning')
-        reject(xhr)
-      })
-    })
-  },
-
-  invidiousGetVideoInformation({ dispatch }, videoId) {
-    return new Promise((resolve, reject) => {
-      const payload = {
-        resource: 'videos',
-        id: videoId,
-        params: {}
-      }
-
-      dispatch('invidiousAPICall', payload).then((response) => {
-        resolve(response)
-      }).catch((xhr) => {
-        console.log('found an error')
-        console.log(xhr)
-        reject(xhr)
-      })
-    })
+    commit('setCurrentInvidiousInstance', randomArrayItem(instanceList))
   }
 }
 
 const mutations = {
-  toggleIsGetChannelInfoRunning(state) {
-    state.isGetChannelInfoRunning = !state.isGetChannelInfoRunning
-  },
-
   setCurrentInvidiousInstance(state, value) {
     state.currentInvidiousInstance = value
+
+    let url
+    try {
+      url = new URL(value)
+    } catch { }
+
+    let authorization = null
+
+    if (url && (url.username.length > 0 || url.password.length > 0)) {
+      authorization = `Basic ${base64EncodeUtf8(`${url.username}:${url.password}`)}`
+    }
+
+    state.currentInvidiousInstanceAuthorization = authorization
+
+    let instanceUrl
+
+    if (url && authorization) {
+      url.username = ''
+      url.password = ''
+
+      instanceUrl = url.toString().replace(/\/$/, '')
+    } else {
+      instanceUrl = value
+    }
+
+    state.currentInvidiousInstanceUrl = instanceUrl
+
+    if (process.env.IS_ELECTRON) {
+      const { ipcRenderer } = require('electron')
+
+      if (authorization) {
+        ipcRenderer.send(IpcChannels.SET_INVIDIOUS_AUTHORIZATION, authorization, instanceUrl)
+      } else {
+        ipcRenderer.send(IpcChannels.SET_INVIDIOUS_AUTHORIZATION, null)
+      }
+    }
   },
 
   setInvidiousInstancesList(state, value) {

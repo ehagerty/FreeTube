@@ -1,17 +1,7 @@
-import Vue from 'vue'
-import FtFlexBox from '../ft-flex-box/ft-flex-box.vue'
-import FtListVideo from '../ft-list-video/ft-list-video.vue'
-import FtListChannel from '../ft-list-channel/ft-list-channel.vue'
-import FtListPlaylist from '../ft-list-playlist/ft-list-playlist.vue'
+import { defineComponent } from 'vue'
 
-export default Vue.extend({
-  name: 'FtElementList',
-  components: {
-    'ft-flex-box': FtFlexBox,
-    'ft-list-video': FtListVideo,
-    'ft-list-channel': FtListChannel,
-    'ft-list-playlist': FtListPlaylist
-  },
+export default defineComponent({
+  name: 'FtButton',
   props: {
     label: {
       type: String,
@@ -24,6 +14,20 @@ export default Vue.extend({
     backgroundColor: {
       type: String,
       default: 'var(--accent-color)'
+    },
+    id: {
+      type: String,
+      default: ''
+    },
+    icon: {
+      type: Array,
+      default: null
+    }
+  },
+  emits: ['click'],
+  methods: {
+    click: function() {
+      this.$emit('click')
     }
   }
 })

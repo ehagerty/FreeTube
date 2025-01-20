@@ -1,47 +1,70 @@
-import Vue from 'vue'
-import { mapActions } from 'vuex'
+import { defineComponent } from 'vue'
+import { mapActions, mapMutations } from 'vuex'
 import FtInput from '../ft-input/ft-input.vue'
-import FtSearchFilters from '../ft-search-filters/ft-search-filters.vue'
 import FtProfileSelector from '../ft-profile-selector/ft-profile-selector.vue'
-import $ from 'jquery'
-import debounce from 'lodash.debounce'
-import ytSuggest from 'youtube-suggest'
+import FtIconButton from '../ft-icon-button/ft-icon-button.vue'
 
-import { IpcChannels } from '../../../constants'
+import { IpcChannels, KeyboardShortcuts, MIXED_SEARCH_HISTORY_ENTRIES_DISPLAY_LIMIT, MOBILE_WIDTH_THRESHOLD, SEARCH_RESULTS_DISPLAY_LIMIT } from '../../../constants'
+import { debounce, localizeAndAddKeyboardShortcutToActionTitle, openInternalPath } from '../../helpers/utils'
+import { translateWindowTitle } from '../../helpers/strings'
+import { clearLocalSearchSuggestionsSession, getLocalSearchSuggestions } from '../../helpers/api/local'
+import { getInvidiousSearchSuggestions } from '../../helpers/api/invidious'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TopNav',
   components: {
+    FtIconButton,
     FtInput,
-    FtSearchFilters,
     FtProfileSelector
   },
   data: () => {
+    let isArrowBackwardDisabled = true
+    let isArrowForwardDisabled = true
+
+    // If the Navigation API isn't supported (Firefox and Safari)
+    // keep the back and forwards buttons always enabled
+    if (!('navigation' in window)) {
+      isArrowBackwardDisabled = false
+      isArrowForwardDisabled = false
+    }
+
     return {
-      component: this,
-      windowWidth: 0,
-      showFilters: false,
-      searchFilterValueChanged: false,
-      historyIndex: 1,
-      isForwardOrBack: false,
-      searchSuggestionsDataList: []
+      showSearchContainer: true,
+      isArrowBackwardDisabled,
+      isArrowForwardDisabled,
+      navigationHistoryDropdownActiveEntry: null,
+      navigationHistoryDropdownOptions: [],
+      isLoadingNavigationHistory: false,
+      pendingNavigationHistoryLabel: null,
+      searchSuggestionsDataList: [],
+      lastSuggestionQuery: ''
     }
   },
   computed: {
-    usingElectron: function () {
-      return this.$store.getters.getUsingElectron
-    },
-
     hideSearchBar: function () {
       return this.$store.getters.getHideSearchBar
     },
 
-    enableSearchSuggestions: function () {
-      return this.$store.getters.getEnableSearchSuggestions
+    hideHeaderLogo: function () {
+      return this.$store.getters.getHideHeaderLogo
     },
 
-    searchInput: function () {
-      return this.$refs.searchInput.$refs.input
+    landingPage: function () {
+      return this.$store.getters.getLandingPage
+    },
+
+    headerLogoTitle: function () {
+      return this.$t('Go to page',
+        {
+          page: translateWindowTitle(this.$router.getRoutes()
+            .find((route) => route.path === '/' + this.landingPage)
+            .meta.title
+          )
+        })
+    },
+
+    enableSearchSuggestions: function () {
+      return this.$store.getters.getEnableSearchSuggestions
     },
 
     searchSettings: function () {
@@ -50,10 +73,6 @@ export default Vue.extend({
 
     barColor: function () {
       return this.$store.getters.getBarColor
-    },
-
-    currentInvidiousInstance: function () {
-      return this.$store.getters.getCurrentInvidiousInstance
     },
 
     backendFallback: function () {
@@ -68,24 +87,111 @@ export default Vue.extend({
       return this.$store.getters.getExpandSideBar
     },
 
+    searchFilterValueChanged: function () {
+      return this.$store.getters.getSearchFilterValueChanged
+    },
+
+    navigationHistoryAddendum: function () {
+      if (this.navigationHistoryDropdownOptions.length === 0) {
+        return ''
+      }
+
+      return '\n' + this.$t('Right-click or hold to see history')
+    },
+
     forwardText: function () {
-      return this.$t('Forward')
+      const shortcuts = [KeyboardShortcuts.APP.GENERAL.HISTORY_FORWARD]
+      if (process.platform === 'darwin') {
+        shortcuts.push(KeyboardShortcuts.APP.GENERAL.HISTORY_FORWARD_ALT_MAC)
+      }
+
+      return localizeAndAddKeyboardShortcutToActionTitle(
+        this.$t('Forward'),
+        shortcuts,
+      ) + this.navigationHistoryAddendum
     },
 
     backwardText: function () {
-      return this.$t('Back')
+      const shortcuts = [KeyboardShortcuts.APP.GENERAL.HISTORY_BACKWARD]
+      if (process.platform === 'darwin') {
+        shortcuts.push(KeyboardShortcuts.APP.GENERAL.HISTORY_BACKWARD_ALT_MAC)
+      }
+
+      return localizeAndAddKeyboardShortcutToActionTitle(
+        this.$t('Back'),
+        shortcuts,
+      ) + this.navigationHistoryAddendum
     },
 
     newWindowText: function () {
-      return this.$t('Open New Window')
-    }
+      return localizeAndAddKeyboardShortcutToActionTitle(
+        this.$t('Open New Window'),
+        KeyboardShortcuts.APP.GENERAL.NEW_WINDOW
+      )
+    },
+
+    usingOnlySearchHistoryResults: function () {
+      return this.lastSuggestionQuery === ''
+    },
+
+    latestMatchingSearchHistoryNames: function () {
+      return this.$store.getters.getLatestMatchingSearchHistoryNames(this.lastSuggestionQuery)
+        .slice(0, MIXED_SEARCH_HISTORY_ENTRIES_DISPLAY_LIMIT)
+    },
+
+    latestSearchHistoryNames: function () {
+      return this.$store.getters.getLatestSearchHistoryNames
+    },
+
+    activeDataList: function () {
+      // show latest search history when the search bar is empty
+      if (this.usingOnlySearchHistoryResults) {
+        return this.$store.getters.getLatestSearchHistoryNames
+      }
+
+      const searchResults = [...this.latestMatchingSearchHistoryNames]
+
+      if (this.enableSearchSuggestions) {
+        for (const searchSuggestion of this.searchSuggestionsDataList) {
+          // prevent duplicate results between search history entries and YT search suggestions
+          if (this.latestMatchingSearchHistoryNames.includes(searchSuggestion)) {
+            continue
+          }
+
+          searchResults.push(searchSuggestion)
+
+          if (searchResults.length === SEARCH_RESULTS_DISPLAY_LIMIT) {
+            break
+          }
+        }
+      }
+
+      return searchResults
+    },
+
+    activeDataListProperties: function () {
+      const searchHistoryEntriesCount = this.usingOnlySearchHistoryResults ? this.latestSearchHistoryNames.length : this.latestMatchingSearchHistoryNames.length
+      return this.activeDataList.map((_, i) => {
+        const isSearchHistoryEntry = i < searchHistoryEntriesCount
+        return isSearchHistoryEntry
+          ? { isRemoveable: true, iconName: 'clock-rotate-left' }
+          : { isRemoveable: false, iconName: 'magnifying-glass' }
+      })
+    },
+  },
+  watch: {
+    $route: function () {
+      this.setNavigationHistoryDropdownOptions()
+      if ('navigation' in window) {
+        this.isArrowForwardDisabled = !window.navigation.canGoForward
+        this.isArrowBackwardDisabled = !window.navigation.canGoBack
+      }
+    },
   },
   mounted: function () {
-    const appWidth = $(window).width()
-
-    if (appWidth <= 680) {
-      const searchContainer = $('.searchContainer').get(0)
-      searchContainer.style.display = 'none'
+    let previousWidth = window.innerWidth
+    if (window.innerWidth <= MOBILE_WIDTH_THRESHOLD) {
+      this.showSearchContainer = false
     }
 
     // Store is not up-to-date when the component mounts, so we use timeout.
@@ -95,33 +201,31 @@ export default Vue.extend({
       }
     }, 0)
 
-    window.addEventListener('resize', function (event) {
-      const width = event.srcElement.innerWidth
-      const searchContainer = $('.searchContainer').get(0)
-
-      if (width > 680) {
-        searchContainer.style.display = ''
-      } else {
-        searchContainer.style.display = 'none'
+    window.addEventListener('resize', () => {
+      // Don't change the status of showSearchContainer if only the height of the window changes
+      // Opening the virtual keyboard can trigger this resize event, but it won't change the width
+      if (previousWidth !== window.innerWidth) {
+        this.showSearchContainer = window.innerWidth > MOBILE_WIDTH_THRESHOLD
+        previousWidth = window.innerWidth
       }
     })
 
     this.debounceSearchResults = debounce(this.getSearchSuggestions, 200)
   },
   methods: {
-    goToSearch: async function (query) {
-      const appWidth = $(window).width()
+    goToSearch: async function (queryText, { event }) {
+      const doCreateNewWindow = event && event.shiftKey
 
-      if (appWidth <= 680) {
-        const searchContainer = $('.searchContainer').get(0)
-        searchContainer.blur()
-        searchContainer.style.display = 'none'
+      if (window.innerWidth <= MOBILE_WIDTH_THRESHOLD) {
+        this.$refs.searchContainer.blur()
+        this.showSearchContainer = false
       } else {
-        const searchInput = $('.searchInput input').get(0)
-        searchInput.blur()
+        this.$refs.searchInput.blur()
       }
 
-      this.getYoutubeUrlInfo(query).then((result) => {
+      clearLocalSearchSuggestionsSession()
+
+      this.getYoutubeUrlInfo(queryText).then((result) => {
         switch (result.urlType) {
           case 'video': {
             const { videoId, timestamp, playlistId } = result
@@ -133,9 +237,12 @@ export default Vue.extend({
             if (playlistId && playlistId.length > 0) {
               query.playlistId = playlistId
             }
-            this.$router.push({
+
+            openInternalPath({
               path: `/watch/${videoId}`,
-              query: query
+              query,
+              doCreateNewWindow,
+              searchQueryText: queryText,
             })
             break
           }
@@ -143,9 +250,11 @@ export default Vue.extend({
           case 'playlist': {
             const { playlistId, query } = result
 
-            this.$router.push({
+            openInternalPath({
               path: `/playlist/${playlistId}`,
-              query
+              query,
+              doCreateNewWindow,
+              searchQueryText: queryText,
             })
             break
           }
@@ -153,61 +262,99 @@ export default Vue.extend({
           case 'search': {
             const { searchQuery, query } = result
 
-            this.$router.push({
+            openInternalPath({
               path: `/search/${encodeURIComponent(searchQuery)}`,
-              query
+              query,
+              doCreateNewWindow,
+              searchQueryText: searchQuery,
             })
             break
           }
 
           case 'hashtag': {
-            // TODO: Implement a hashtag related view
-            let message = 'Hashtags have not yet been implemented, try again later'
-            if (this.$t(message) && this.$t(message) !== '') {
-              message = this.$t(message)
-            }
+            const { hashtag } = result
+            openInternalPath({
+              path: `/hashtag/${encodeURIComponent(hashtag)}`,
+              doCreateNewWindow,
+              searchQueryText: `#${hashtag}`,
+            })
 
-            this.showToast({
-              message: message
+            break
+          }
+
+          case 'post': {
+            const { postId, query } = result
+
+            openInternalPath({
+              path: `/post/${postId}`,
+              query,
+              doCreateNewWindow,
+              searchQueryText: queryText,
             })
             break
           }
 
           case 'channel': {
-            const { channelId, subPath } = result
+            const { channelId, subPath, url } = result
 
-            this.$router.push({
-              path: `/channel/${channelId}/${subPath}`
+            openInternalPath({
+              path: `/channel/${channelId}/${subPath}`,
+              doCreateNewWindow,
+              query: {
+                url,
+              },
+              searchQueryText: queryText,
             })
             break
           }
 
           case 'invalid_url':
           default: {
-            this.$router.push({
-              path: `/search/${encodeURIComponent(query)}`,
+            openInternalPath({
+              path: `/search/${encodeURIComponent(queryText)}`,
               query: {
                 sortBy: this.searchSettings.sortBy,
                 time: this.searchSettings.time,
                 type: this.searchSettings.type,
-                duration: this.searchSettings.duration
-              }
+                duration: this.searchSettings.duration,
+                features: this.searchSettings.features,
+              },
+              doCreateNewWindow,
+              searchQueryText: queryText,
             })
           }
         }
-      })
 
-      // Close the filter panel
-      this.showFilters = false
+        if (doCreateNewWindow) {
+          // Query text copied to new window = can be removed from current window
+          this.updateSearchInputText('')
+        }
+      })
     },
 
     focusSearch: function () {
-      this.searchInput.focus()
+      if (!this.hideSearchBar) {
+        // In order to prevent Klipper's "Synchronize contents of the clipboard
+        // and the selection" feature from being triggered when running
+        // Chromium on KDE Plasma, it seems both focus() focus and
+        // select() have to be called asynchronously (see issue #2019).
+        setTimeout(() => {
+          this.$refs.searchInput.focus()
+          this.$refs.searchInput.select()
+        }, 0)
+      }
     },
 
     getSearchSuggestionsDebounce: function (query) {
+      const trimmedQuery = query.trim()
+      if (trimmedQuery === this.lastSuggestionQuery) {
+        return
+      }
+
+      this.lastSuggestionQuery = trimmedQuery
+
       if (this.enableSearchSuggestions) {
-        this.debounceSearchResults(query)
+        this.debounceSearchResults(trimmedQuery)
       }
     },
 
@@ -228,7 +375,7 @@ export default Vue.extend({
         return
       }
 
-      ytSuggest(query).then((results) => {
+      getLocalSearchSuggestions(query).then((results) => {
         this.searchSuggestionsDataList = results
       })
     },
@@ -239,20 +386,12 @@ export default Vue.extend({
         return
       }
 
-      const searchPayload = {
-        resource: 'search/suggestions',
-        id: '',
-        params: {
-          q: query
-        }
-      }
-
-      this.invidiousAPICall(searchPayload).then((results) => {
+      getInvidiousSearchSuggestions(query).then((results) => {
         this.searchSuggestionsDataList = results.suggestions
       }).catch((err) => {
-        console.log(err)
-        if (this.backendFallback) {
-          console.log(
+        console.error(err)
+        if (process.env.SUPPORTS_LOCAL_API && this.backendFallback) {
+          console.error(
             'Error gettings search suggestions.  Falling back to Local API'
           )
           this.getSearchSuggestionsLocal(query)
@@ -261,55 +400,48 @@ export default Vue.extend({
     },
 
     toggleSearchContainer: function () {
-      const searchContainer = $('.searchContainer').get(0)
-
-      if (searchContainer.style.display === 'none') {
-        searchContainer.style.display = ''
-      } else {
-        searchContainer.style.display = 'none'
-      }
-
-      this.showFilters = false
+      this.showSearchContainer = !this.showSearchContainer
     },
 
-    handleSearchFilterValueChanged: function(filterValueChanged) {
-      this.searchFilterValueChanged = filterValueChanged
-    },
+    setNavigationHistoryDropdownOptions: async function() {
+      if (process.env.IS_ELECTRON) {
+        this.isLoadingNavigationHistory = true
+        const { ipcRenderer } = require('electron')
 
-    navigateHistory: function() {
-      if (!this.isForwardOrBack) {
-        this.historyIndex = window.history.length
-        $('#historyArrowBack').removeClass('fa-arrow-left')
-        $('#historyArrowForward').addClass('fa-arrow-right')
-      } else {
-        this.isForwardOrBack = false
-      }
-    },
+        const dropdownOptions = await ipcRenderer.invoke(IpcChannels.GET_NAVIGATION_HISTORY)
 
-    historyBack: function () {
-      this.isForwardOrBack = true
-      window.history.back()
+        const activeEntry = dropdownOptions.find(option => option.active)
 
-      if (this.historyIndex > 1) {
-        this.historyIndex--
-        $('#historyArrowForward').removeClass('fa-arrow-right')
-        if (this.historyIndex === 1) {
-          $('#historyArrowBack').addClass('fa-arrow-left')
+        if (this.pendingNavigationHistoryLabel) {
+          activeEntry.label = this.pendingNavigationHistoryLabel
         }
+
+        this.navigationHistoryDropdownOptions = dropdownOptions
+        this.navigationHistoryDropdownActiveEntry = activeEntry
+        this.isLoadingNavigationHistory = false
       }
     },
 
-    historyForward: function () {
-      this.isForwardOrBack = true
-      window.history.forward()
+    goToOffset: function (offset) {
+      // no point navigating to the current route
+      if (offset !== 0) {
+        this.$router.go(offset)
+      }
+    },
 
-      if (this.historyIndex < window.history.length) {
-        this.historyIndex++
-        $('#historyArrowBack').removeClass('fa-arrow-left')
+    historyBack: function (offset) {
+      if (offset != null) {
+        this.goToOffset(offset)
+      } else {
+        this.$router.back()
+      }
+    },
 
-        if (this.historyIndex === window.history.length) {
-          $('#historyArrowForward').addClass('fa-arrow-right')
-        }
+    historyForward: function (offset) {
+      if (offset != null) {
+        this.goToOffset(offset)
+      } else {
+        this.$router.forward()
       }
     },
 
@@ -318,7 +450,7 @@ export default Vue.extend({
     },
 
     createNewWindow: function () {
-      if (this.usingElectron) {
+      if (process.env.IS_ELECTRON) {
         const { ipcRenderer } = require('electron')
         ipcRenderer.send(IpcChannels.CREATE_NEW_WINDOW)
       } else {
@@ -328,13 +460,29 @@ export default Vue.extend({
     navigate: function (route) {
       this.$router.push('/' + route)
     },
-    hideFilters: function () {
-      this.showFilters = false
+    updateSearchInputText: function (text) {
+      this.$refs.searchInput.updateInputData(text)
     },
+    setActiveNavigationHistoryEntryTitle(value) {
+      if (this.isLoadingNavigationHistory) {
+        this.pendingNavigationHistoryLabel = value
+      } else if (this.navigationHistoryDropdownActiveEntry) {
+        this.navigationHistoryDropdownActiveEntry.label = value
+      }
+    },
+    removeSearchHistoryEntryInDbAndCache(query) {
+      this.removeSearchHistoryEntry(query)
+      this.removeFromSessionSearchHistory(query)
+    },
+
     ...mapActions([
-      'showToast',
       'getYoutubeUrlInfo',
-      'invidiousAPICall'
+      'removeSearchHistoryEntry',
+      'showSearchFilters'
+    ]),
+
+    ...mapMutations([
+      'removeFromSessionSearchHistory'
     ])
   }
 })

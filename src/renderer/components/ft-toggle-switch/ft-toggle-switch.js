@@ -1,7 +1,7 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import FtTooltip from '../ft-tooltip/ft-tooltip.vue'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtToggleSwitch',
   components: {
     'ft-tooltip': FtTooltip
@@ -26,8 +26,17 @@ export default Vue.extend({
     tooltip: {
       type: String,
       default: ''
-    }
+    },
+    tooltipPosition: {
+      type: String,
+      default: 'bottom-left'
+    },
+    tooltipAllowNewlines: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   data: function () {
     return {
       id: '',
@@ -39,8 +48,13 @@ export default Vue.extend({
       this.currentValue = this.defaultValue
     }
   },
-  mounted: function () {
+  created: function () {
     this.id = this._uid
     this.currentValue = this.defaultValue
+  },
+  methods: {
+    change: function () {
+      this.$emit('change', this.currentValue)
+    },
   }
 })

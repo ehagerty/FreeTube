@@ -1,16 +1,17 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
+import FtSettingsSection from '../FtSettingsSection/FtSettingsSection.vue'
 import FtFlexBox from '../ft-flex-box/ft-flex-box.vue'
 import FtToggleSwitch from '../ft-toggle-switch/ft-toggle-switch.vue'
 import FtSelect from '../ft-select/ft-select.vue'
 import FtButton from '../ft-button/ft-button.vue'
 import FtInput from '../ft-input/ft-input.vue'
 import { mapActions } from 'vuex'
-import { ipcRenderer } from 'electron'
 import { IpcChannels } from '../../../constants'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'DownloadSettings',
   components: {
+    'ft-settings-section': FtSettingsSection,
     'ft-toggle-switch': FtToggleSwitch,
     'ft-flex-box': FtFlexBox,
     'ft-select': FtSelect,
@@ -19,7 +20,6 @@ export default Vue.extend({
   },
   data: function () {
     return {
-      askForDownloadPath: false,
       downloadBehaviorValues: [
         'download',
         'open'
@@ -29,6 +29,9 @@ export default Vue.extend({
   computed: {
     downloadPath: function() {
       return this.$store.getters.getDownloadFolderPath
+    },
+    askForDownloadPath: function() {
+      return this.$store.getters.getDownloadAskPath
     },
     downloadBehaviorNames: function () {
       return [
@@ -40,26 +43,26 @@ export default Vue.extend({
       return this.$store.getters.getDownloadBehavior
     }
   },
-  mounted: function () {
-    this.askForDownloadPath = this.downloadPath === ''
-  },
   methods: {
     handleDownloadingSettingChange: function (value) {
-      this.askForDownloadPath = value
-      if (value === true) {
-        this.updateDownloadFolderPath('')
+      this.updateDownloadAskPath(value)
+    },
+    chooseDownloadingFolder: async function () {
+      if (process.env.IS_ELECTRON) {
+        const { ipcRenderer } = require('electron')
+
+        const folder = await ipcRenderer.invoke(
+          IpcChannels.SHOW_OPEN_DIALOG,
+          { properties: ['openDirectory'] }
+        )
+
+        if (folder.canceled) return
+
+        this.updateDownloadFolderPath(folder.filePaths[0])
       }
     },
-    chooseDownloadingFolder: async function() {
-      // only use with electron
-      const folder = await ipcRenderer.invoke(
-        IpcChannels.SHOW_OPEN_DIALOG,
-        { properties: ['openDirectory'] }
-      )
-
-      this.updateDownloadFolderPath(folder.filePaths[0])
-    },
     ...mapActions([
+      'updateDownloadAskPath',
       'updateDownloadFolderPath',
       'updateDownloadBehavior'
     ])

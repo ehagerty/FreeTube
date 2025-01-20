@@ -1,28 +1,42 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtChannelBubble',
   props: {
+    channelId: {
+      type: String,
+      required: true
+    },
     channelName: {
       type: String,
       required: true
     },
     channelThumbnail: {
       type: String,
-      required: true
+      default: null
     },
     showSelected: {
       type: Boolean,
       default: false
     }
   },
+  emits: ['click'],
   data: function () {
     return {
       selected: false
     }
   },
+  computed: {
+    sanitizedId: function() {
+      return 'channelBubble' + this.channelId
+    }
+  },
   methods: {
-    handleClick: function () {
+    handleClick: function (event) {
+      if (event instanceof KeyboardEvent) {
+        event.preventDefault()
+      }
+
       if (this.showSelected) {
         this.selected = !this.selected
       }

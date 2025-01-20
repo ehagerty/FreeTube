@@ -1,15 +1,15 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions } from 'vuex'
-import FtCard from '../ft-card/ft-card.vue'
+import FtSettingsSection from '../FtSettingsSection/FtSettingsSection.vue'
 import FtToggleSwitch from '../ft-toggle-switch/ft-toggle-switch.vue'
 import FtInput from '../ft-input/ft-input.vue'
 import FtFlexBox from '../ft-flex-box/ft-flex-box.vue'
-import FtSponsorBlockCategory from '../ft-sponsor-block-category/ft-sponsor-block-category.vue'
+import FtSponsorBlockCategory from '../FtSponsorBlockCategory/FtSponsorBlockCategory.vue'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'SponsorBlockSettings',
   components: {
-    'ft-card': FtCard,
+    'ft-settings-section': FtSettingsSection,
     'ft-toggle-switch': FtToggleSwitch,
     'ft-input': FtInput,
     'ft-flex-box': FtFlexBox,
@@ -38,17 +38,41 @@ export default Vue.extend({
     },
     sponsorBlockShowSkippedToast: function () {
       return this.$store.getters.getSponsorBlockShowSkippedToast
-    }
+    },
+
+    useDeArrowTitles: function () {
+      return this.$store.getters.getUseDeArrowTitles
+    },
+    useDeArrowThumbnails: function () {
+      return this.$store.getters.getUseDeArrowThumbnails
+    },
+    deArrowThumbnailGeneratorUrl: function () {
+      return this.$store.getters.getDeArrowThumbnailGeneratorUrl
+    },
   },
   methods: {
     handleUpdateSponsorBlock: function (value) {
       this.updateUseSponsorBlock(value)
     },
 
+    handleUpdateUseDeArrowTitles: function (value) {
+      this.updateUseDeArrowTitles(value)
+    },
+
+    handleUpdateUseDeArrowThumbnails: function (value) {
+      this.updateUseDeArrowThumbnails(value)
+    },
+
     handleUpdateSponsorBlockUrl: function (value) {
       const sponsorBlockUrlWithoutTrailingSlash = value.replace(/\/$/, '')
       const sponsorBlockUrlWithoutApiSuffix = sponsorBlockUrlWithoutTrailingSlash.replace(/\/api$/, '')
       this.updateSponsorBlockUrl(sponsorBlockUrlWithoutApiSuffix)
+    },
+
+    handleUpdateDeArrowThumbnailGeneratorUrl: function (value) {
+      const urlWithoutTrailingSlash = value.replace(/\/$/, '')
+      const urlWithoutApiSuffix = urlWithoutTrailingSlash.replace(/\/api$/, '')
+      this.updateDeArrowThumbnailGeneratorUrl(urlWithoutApiSuffix)
     },
 
     handleUpdateSponsorBlockShowSkippedToast: function (value) {
@@ -58,7 +82,10 @@ export default Vue.extend({
     ...mapActions([
       'updateUseSponsorBlock',
       'updateSponsorBlockUrl',
-      'updateSponsorBlockShowSkippedToast'
+      'updateSponsorBlockShowSkippedToast',
+      'updateUseDeArrowTitles',
+      'updateUseDeArrowThumbnails',
+      'updateDeArrowThumbnailGeneratorUrl'
     ])
   }
 })

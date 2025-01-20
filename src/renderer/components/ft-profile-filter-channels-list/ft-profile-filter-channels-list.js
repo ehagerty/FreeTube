@@ -1,21 +1,22 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions } from 'vuex'
 
 import FtCard from '../../components/ft-card/ft-card.vue'
 import FtFlexBox from '../../components/ft-flex-box/ft-flex-box.vue'
 import FtChannelBubble from '../../components/ft-channel-bubble/ft-channel-bubble.vue'
 import FtButton from '../../components/ft-button/ft-button.vue'
-import FtPrompt from '../../components/ft-prompt/ft-prompt.vue'
 import FtSelect from '../ft-select/ft-select.vue'
+import { deepCopy, showToast } from '../../helpers/utils'
+import { youtubeImageUrlToInvidious } from '../../helpers/api/invidious'
+import { MAIN_PROFILE_ID } from '../../../constants'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtProfileFilterChannelsList',
   components: {
     'ft-card': FtCard,
     'ft-flex-box': FtFlexBox,
     'ft-channel-bubble': FtChannelBubble,
     'ft-button': FtButton,
-    'ft-prompt': FtPrompt,
     'ft-select': FtSelect
   },
   props: {
@@ -35,36 +36,33 @@ export default Vue.extend({
     backendPreference: function () {
       return this.$store.getters.getBackendPreference
     },
-    currentInvidiousInstance: function () {
-      return this.$store.getters.getCurrentInvidiousInstance
+    currentInvidiousInstanceUrl: function () {
+      return this.$store.getters.getCurrentInvidiousInstanceUrl
     },
     profileList: function () {
       return this.$store.getters.getProfileList
     },
     profileNameList: function () {
-      return this.profileList.flatMap((profile) => profile.name !== this.profile.name ? [profile.name] : [])
+      return this.profileList.flatMap((profile) => profile.name !== this.profile.name ? [this.translatedProfileName(profile)] : [])
     },
     selectedText: function () {
-      const localeText = this.$t('Profile.$ selected')
-      return localeText.replace('$', this.selectedLength)
+      return this.$t('Profile.{number} selected', { number: this.selectedLength })
+    },
+    locale: function () {
+      return this.$i18n.locale
     }
   },
   watch: {
-    profile: 'updateChannelList',
+    profile: function () {
+      this.updateChannelList()
+      this.selectNone()
+    },
     filteredProfileIndex: 'updateChannelList'
   },
   mounted: function () {
     if (typeof this.profile.subscriptions !== 'undefined') {
-      this.channels = JSON.parse(JSON.stringify(this.profileList[this.filteredProfileIndex].subscriptions)).sort((a, b) => {
-        const nameA = a.name.toLowerCase()
-        const nameB = b.name.toLowerCase()
-        if (nameA < nameB) {
-          return -1
-        }
-        if (nameA > nameB) {
-          return 1
-        }
-        return 0
+      this.channels = deepCopy(this.profileList[this.filteredProfileIndex].subscriptions).sort((a, b) => {
+        return a.name?.toLowerCase().localeCompare(b.name?.toLowerCase(), this.locale)
       }).filter((channel) => {
         const index = this.profile.subscriptions.findIndex((sub) => {
           return sub.id === channel.id
@@ -73,7 +71,7 @@ export default Vue.extend({
         return index === -1
       }).map((channel) => {
         if (this.backendPreference === 'invidious') {
-          channel.thumbnail = channel.thumbnail.replace('https://yt3.ggpht.com', `${this.currentInvidiousInstance}/ggpht/`)
+          channel.thumbnail = youtubeImageUrlToInvidious(channel.thumbnail, this.currentInvidiousInstanceUrl)
         }
         channel.selected = false
         return channel
@@ -82,16 +80,10 @@ export default Vue.extend({
   },
   methods: {
     updateChannelList () {
-      this.channels = JSON.parse(JSON.stringify(this.profileList[this.filteredProfileIndex].subscriptions)).sort((a, b) => {
-        const nameA = a.name.toLowerCase()
-        const nameB = b.name.toLowerCase()
-        if (nameA < nameB) {
-          return -1
-        }
-        if (nameA > nameB) {
-          return 1
-        }
-        return 0
+      const filterProfileName = this.profileNameList[this.filteredProfileIndex]
+      const filterProfile = this.profileList.find((profile) => this.translatedProfileName(profile) === filterProfileName)
+      this.channels = deepCopy(filterProfile.subscriptions).sort((a, b) => {
+        return a.name?.toLowerCase().localeCompare(b.name?.toLowerCase(), this.locale)
       }).filter((channel) => {
         const index = this.profile.subscriptions.findIndex((sub) => {
           return sub.id === channel.id
@@ -100,7 +92,7 @@ export default Vue.extend({
         return index === -1
       }).map((channel) => {
         if (this.backendPreference === 'invidious') {
-          channel.thumbnail = channel.thumbnail.replace('https://yt3.ggpht.com', `${this.currentInvidiousInstance}/ggpht/`)
+          channel.thumbnail = youtubeImageUrlToInvidious(channel.thumbnail, this.currentInvidiousInstanceUrl)
         }
         channel.selected = false
         return channel
@@ -115,25 +107,22 @@ export default Vue.extend({
     },
 
     handleProfileFilterChange: function (change) {
-      this.filteredProfileIndex = this.profileList.findIndex(profile => profile.name === change)
+      this.selectNone()
+      this.filteredProfileIndex = this.profileNameList.indexOf(change)
     },
 
     addChannelToProfile: function () {
       if (this.selectedLength === 0) {
-        this.showToast({
-          message: this.$t('Profile.No channel(s) have been selected')
-        })
+        showToast(this.$t('Profile.No channel(s) have been selected'))
       } else {
         const subscriptions = this.channels.filter((channel) => {
           return channel.selected
         })
 
-        const profile = JSON.parse(JSON.stringify(this.profile))
+        const profile = deepCopy(this.profile)
         profile.subscriptions = profile.subscriptions.concat(subscriptions)
         this.updateProfile(profile)
-        this.showToast({
-          message: this.$t('Profile.Profile has been updated')
-        })
+        showToast(this.$t('Profile.Profile has been updated'))
         this.selectNone()
       }
     },
@@ -172,8 +161,11 @@ export default Vue.extend({
       }).length
     },
 
+    translatedProfileName: function (profile) {
+      return profile._id === MAIN_PROFILE_ID ? this.$t('Profile.All Channels') : profile.name
+    },
+
     ...mapActions([
-      'showToast',
       'updateProfile'
     ])
   }

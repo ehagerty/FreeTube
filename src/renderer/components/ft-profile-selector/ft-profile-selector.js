@@ -1,11 +1,13 @@
-import Vue from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { mapActions } from 'vuex'
-import $ from 'jquery'
 
 import FtCard from '../../components/ft-card/ft-card.vue'
 import FtIconButton from '../../components/ft-icon-button/ft-icon-button.vue'
+import { showToast } from '../../helpers/utils'
+import { MAIN_PROFILE_ID } from '../../../constants'
+import { getFirstCharacter } from '../../helpers/strings'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtProfileSelector',
   components: {
     'ft-card': FtCard,
@@ -13,49 +15,47 @@ export default Vue.extend({
   },
   data: function () {
     return {
-      profileListShown: false
+      profileListShown: false,
+      mouseDownOnIcon: false
     }
   },
   computed: {
+    locale: function () {
+      return this.$i18n.locale
+    },
     profileList: function () {
       return this.$store.getters.getProfileList
     },
     activeProfile: function () {
       return this.$store.getters.getActiveProfile
     },
-    defaultProfile: function () {
-      return this.$store.getters.getDefaultProfile
-    },
     activeProfileInitial: function () {
-      return this?.activeProfile?.name?.length > 0 ? Array.from(this.activeProfile.name)[0].toUpperCase() : ''
+      return this.activeProfile?.name
+        ? getFirstCharacter(this.translatedProfileName(this.activeProfile), this.locale).toUpperCase()
+        : ''
     },
     profileInitials: function () {
       return this.profileList.map((profile) => {
-        return profile?.name?.length > 0 ? Array.from(profile.name)[0].toUpperCase() : ''
+        return profile?.name
+          ? getFirstCharacter(this.translatedProfileName(profile), this.locale).toUpperCase()
+          : ''
       })
     }
   },
-  mounted: function () {
-    $('#profileList').focusout(() => {
-      $('#profileList')[0].style.display = 'none'
-      // When pressing the profile button
-      // It will make the menu reappear if we set `profileListShown` immediately
-      setTimeout(() => {
-        this.profileListShown = false
-      }, 100)
-    })
-  },
   methods: {
+    isActiveProfile: function (profile) {
+      return profile._id === this.activeProfile._id
+    },
+
     toggleProfileList: function () {
-      const profileList = $('#profileList')
+      this.profileListShown = !this.profileListShown
 
       if (this.profileListShown) {
-        profileList.get(0).style.display = 'none'
-        this.profileListShown = false
-      } else {
-        profileList.get(0).style.display = 'inline'
-        profileList.get(0).focus()
-        this.profileListShown = true
+        // wait until the profile list is visible
+        // then focus it so we can hide it automatically when it loses focus
+        nextTick(() => {
+          this.$refs.profileList?.$el?.focus()
+        })
       }
     },
 
@@ -63,7 +63,26 @@ export default Vue.extend({
       this.$router.push({
         path: '/settings/profile/'
       })
-      $('#profileList').focusout()
+      this.profileListShown = false
+    },
+
+    handleIconMouseDown: function () {
+      if (this.profileListShown) {
+        this.mouseDownOnIcon = true
+      }
+    },
+
+    handleProfileListFocusOut: function () {
+      if (this.mouseDownOnIcon) {
+        this.mouseDownOnIcon = false
+      } else if (!this.$refs.profileList.$el.matches(':focus-within')) {
+        this.profileListShown = false
+      }
+    },
+
+    handleProfileListEscape: function () {
+      this.$refs.iconButton.focus()
+      // handleProfileListFocusOut will hide the dropdown for us
     },
 
     setActiveProfile: function (profile) {
@@ -75,16 +94,18 @@ export default Vue.extend({
         if (targetProfile) {
           this.updateActiveProfile(targetProfile._id)
 
-          const message = this.$t('Profile.$ is now the active profile').replace('$', profile.name)
-          this.showToast({ message })
+          showToast(this.$t('Profile.{profile} is now the active profile', { profile: this.translatedProfileName(profile) }))
         }
       }
 
-      $('#profileList').trigger('focusout')
+      this.profileListShown = false
+    },
+
+    translatedProfileName: function (profile) {
+      return profile._id === MAIN_PROFILE_ID ? this.$t('Profile.All Channels') : profile.name
     },
 
     ...mapActions([
-      'showToast',
       'updateActiveProfile'
     ])
   }

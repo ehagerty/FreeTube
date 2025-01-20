@@ -32,12 +32,29 @@ class History {
     )
   }
 
+  static overwrite(records) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_HISTORY,
+      { action: DBActions.HISTORY.OVERWRITE, data: records }
+    )
+  }
+
   static updateWatchProgress(videoId, watchProgress) {
     return ipcRenderer.invoke(
       IpcChannels.DB_HISTORY,
       {
         action: DBActions.HISTORY.UPDATE_WATCH_PROGRESS,
         data: { videoId, watchProgress }
+      }
+    )
+  }
+
+  static updateLastViewedPlaylist(videoId, lastViewedPlaylistId, lastViewedPlaylistType, lastViewedPlaylistItemId) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_HISTORY,
+      {
+        action: DBActions.HISTORY.UPDATE_PLAYLIST,
+        data: { videoId, lastViewedPlaylistId, lastViewedPlaylistType, lastViewedPlaylistItemId }
       }
     )
   }
@@ -53,13 +70,6 @@ class History {
     return ipcRenderer.invoke(
       IpcChannels.DB_HISTORY,
       { action: DBActions.GENERAL.DELETE_ALL }
-    )
-  }
-
-  static persist() {
-    return ipcRenderer.invoke(
-      IpcChannels.DB_HISTORY,
-      { action: DBActions.GENERAL.PERSIST }
     )
   }
 }
@@ -86,17 +96,30 @@ class Profiles {
     )
   }
 
+  static addChannelToProfiles(channel, profileIds) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_PROFILES,
+      {
+        action: DBActions.PROFILES.ADD_CHANNEL,
+        data: { channel, profileIds }
+      }
+    )
+  }
+
+  static removeChannelFromProfiles(channelId, profileIds) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_PROFILES,
+      {
+        action: DBActions.PROFILES.REMOVE_CHANNEL,
+        data: { channelId, profileIds }
+      }
+    )
+  }
+
   static delete(id) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PROFILES,
       { action: DBActions.GENERAL.DELETE, data: id }
-    )
-  }
-
-  static persist() {
-    return ipcRenderer.invoke(
-      IpcChannels.DB_PROFILES,
-      { action: DBActions.GENERAL.PERSIST }
     )
   }
 }
@@ -116,22 +139,29 @@ class Playlists {
     )
   }
 
-  static upsertVideoByPlaylistName(playlistName, videoData) {
+  static upsert(playlist) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_PLAYLISTS,
+      { action: DBActions.GENERAL.UPSERT, data: playlist }
+    )
+  }
+
+  static upsertVideoByPlaylistId(_id, videoData) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PLAYLISTS,
       {
         action: DBActions.PLAYLISTS.UPSERT_VIDEO,
-        data: { playlistName, videoData }
+        data: { _id, videoData }
       }
     )
   }
 
-  static upsertVideoIdsByPlaylistId(_id, videoIds) {
+  static upsertVideosByPlaylistId(_id, videos) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PLAYLISTS,
       {
-        action: DBActions.PLAYLISTS.UPSERT_VIDEO_IDS,
-        data: { _id, videoIds }
+        action: DBActions.PLAYLISTS.UPSERT_VIDEOS,
+        data: { _id, videos }
       }
     )
   }
@@ -143,32 +173,32 @@ class Playlists {
     )
   }
 
-  static deleteVideoIdByPlaylistName(playlistName, videoId) {
+  static deleteVideoIdByPlaylistId(_id, videoId, playlistItemId) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PLAYLISTS,
       {
         action: DBActions.PLAYLISTS.DELETE_VIDEO_ID,
-        data: { playlistName, videoId }
+        data: { _id, videoId, playlistItemId }
       }
     )
   }
 
-  static deleteVideoIdsByPlaylistName(playlistName, videoIds) {
+  static deleteVideoIdsByPlaylistId(_id, videoIds) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PLAYLISTS,
       {
         action: DBActions.PLAYLISTS.DELETE_VIDEO_IDS,
-        data: { playlistName, videoIds }
+        data: { _id, videoIds }
       }
     )
   }
 
-  static deleteAllVideosByPlaylistName(playlistName) {
+  static deleteAllVideosByPlaylistId(_id) {
     return ipcRenderer.invoke(
       IpcChannels.DB_PLAYLISTS,
       {
         action: DBActions.PLAYLISTS.DELETE_ALL_VIDEOS,
-        data: playlistName
+        data: _id
       }
     )
   }
@@ -188,11 +218,114 @@ class Playlists {
   }
 }
 
-const handlers = {
-  settings: Settings,
-  history: History,
-  profiles: Profiles,
-  playlists: Playlists
+class SearchHistory {
+  static find() {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SEARCH_HISTORY,
+      { action: DBActions.GENERAL.FIND }
+    )
+  }
+
+  static upsert(searchHistoryEntry) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SEARCH_HISTORY,
+      { action: DBActions.GENERAL.UPSERT, data: searchHistoryEntry }
+    )
+  }
+
+  static delete(_id) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SEARCH_HISTORY,
+      { action: DBActions.GENERAL.DELETE, data: _id }
+    )
+  }
+
+  static deleteAll() {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SEARCH_HISTORY,
+      { action: DBActions.GENERAL.DELETE_ALL }
+    )
+  }
 }
 
-export default handlers
+class SubscriptionCache {
+  static find() {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      { action: DBActions.GENERAL.FIND }
+    )
+  }
+
+  static updateVideosByChannelId(channelId, entries, timestamp) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      {
+        action: DBActions.SUBSCRIPTION_CACHE.UPDATE_VIDEOS_BY_CHANNEL,
+        data: { channelId, entries, timestamp },
+      }
+    )
+  }
+
+  static updateLiveStreamsByChannelId(channelId, entries, timestamp) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      {
+        action: DBActions.SUBSCRIPTION_CACHE.UPDATE_LIVE_STREAMS_BY_CHANNEL,
+        data: { channelId, entries, timestamp },
+      }
+    )
+  }
+
+  static updateShortsByChannelId(channelId, entries, timestamp) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      {
+        action: DBActions.SUBSCRIPTION_CACHE.UPDATE_SHORTS_BY_CHANNEL,
+        data: { channelId, entries, timestamp },
+      }
+    )
+  }
+
+  static updateShortsWithChannelPageShortsByChannelId(channelId, entries) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      {
+        action: DBActions.SUBSCRIPTION_CACHE.UPDATE_SHORTS_WITH_CHANNEL_PAGE_SHORTS_BY_CHANNEL,
+        data: { channelId, entries },
+      }
+    )
+  }
+
+  static updateCommunityPostsByChannelId(channelId, entries, timestamp) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      {
+        action: DBActions.SUBSCRIPTION_CACHE.UPDATE_COMMUNITY_POSTS_BY_CHANNEL,
+        data: { channelId, entries, timestamp },
+      }
+    )
+  }
+
+  static deleteMultipleChannels(channelIds) {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      { action: DBActions.GENERAL.DELETE_MULTIPLE, data: channelIds }
+    )
+  }
+
+  static deleteAll() {
+    return ipcRenderer.invoke(
+      IpcChannels.DB_SUBSCRIPTION_CACHE,
+      { action: DBActions.GENERAL.DELETE_ALL }
+    )
+  }
+}
+
+export {
+  Settings as settings,
+  History as history,
+  Profiles as profiles,
+  Playlists as playlists,
+  SearchHistory as searchHistory,
+  SubscriptionCache as subscriptionCache,
+}

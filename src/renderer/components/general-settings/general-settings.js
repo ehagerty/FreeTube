@@ -1,18 +1,20 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions, mapMutations } from 'vuex'
-import FtCard from '../ft-card/ft-card.vue'
+import FtSettingsSection from '../FtSettingsSection/FtSettingsSection.vue'
 import FtSelect from '../ft-select/ft-select.vue'
 import FtInput from '../ft-input/ft-input.vue'
 import FtToggleSwitch from '../ft-toggle-switch/ft-toggle-switch.vue'
 import FtFlexBox from '../ft-flex-box/ft-flex-box.vue'
 import FtButton from '../ft-button/ft-button.vue'
 
-import debounce from 'lodash.debounce'
+import allLocales from '../../../../static/locales/activeLocales.json'
+import { debounce, randomArrayItem, showToast } from '../../helpers/utils'
+import { translateWindowTitle } from '../../helpers/strings'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'GeneralSettings',
   components: {
-    'ft-card': FtCard,
+    'ft-settings-section': FtSettingsSection,
     'ft-select': FtSelect,
     'ft-input': FtInput,
     'ft-toggle-switch': FtToggleSwitch,
@@ -21,26 +23,14 @@ export default Vue.extend({
   },
   data: function () {
     return {
-      instanceNames: [],
-      instanceValues: [],
-      backendValues: [
-        'invidious',
-        'local'
-      ],
-      defaultPageNames: [
-        'Subscriptions',
-        'Trending',
-        'Most Popular',
-        'Playlists',
-        'History'
-      ],
-      defaultPageValues: [
-        'subscriptions',
-        'trending',
-        'mostPopular',
-        'playlists',
-        'history'
-      ],
+      backendValues: process.env.SUPPORTS_LOCAL_API
+        ? [
+            'invidious',
+            'local'
+          ]
+        : [
+            'invidious'
+          ],
       viewTypeValues: [
         'grid',
         'list'
@@ -49,24 +39,27 @@ export default Vue.extend({
         '',
         'start',
         'middle',
-        'end'
+        'end',
+        'hidden',
+        'blur'
       ],
       externalLinkHandlingValues: [
         '',
         'openLinkAfterPrompt',
         'doNothing'
+      ],
+      includedDefaultPageNames: [
+        'subscriptions',
+        'subscribedChannels',
+        'trending',
+        'popular',
+        'userPlaylists',
+        'history',
+        'settings'
       ]
     }
   },
   computed: {
-    isDev: function () {
-      return process.env.NODE_ENV === 'development'
-    },
-
-    usingElectron: function () {
-      return this.$store.getters.getUsingElectron
-    },
-
     currentInvidiousInstance: function () {
       return this.$store.getters.getCurrentInvidiousInstance
     },
@@ -76,16 +69,51 @@ export default Vue.extend({
     backendFallback: function () {
       return this.$store.getters.getBackendFallback
     },
+    blurThumbnails: function () {
+      return this.$store.getters.getBlurThumbnails
+    },
     checkForUpdates: function () {
       return this.$store.getters.getCheckForUpdates
     },
     checkForBlogPosts: function () {
       return this.$store.getters.getCheckForBlogPosts
     },
+    hidePlaylists: function () {
+      return this.$store.getters.getHidePlaylists
+    },
+    hidePopularVideos: function () {
+      return this.$store.getters.getHidePopularVideos
+    },
+    hideTrendingVideos: function () {
+      return this.$store.getters.getHideTrendingVideos
+    },
+    defaultPages: function () {
+      let includedPageNames = this.includedDefaultPageNames
+      if (this.hideTrendingVideos) includedPageNames = includedPageNames.filter((pageName) => pageName !== 'trending')
+      if (this.hidePlaylists) includedPageNames = includedPageNames.filter((pageName) => pageName !== 'userPlaylists')
+      if (!(!this.hidePopularVideos && (this.backendFallback || this.backendPreference === 'invidious'))) includedPageNames = includedPageNames.filter((pageName) => pageName !== 'popular')
+      return this.$router.getRoutes().filter((route) => includedPageNames.includes(route.name))
+    },
+    defaultPageNames: function () {
+      return this.defaultPages.map((route) => translateWindowTitle(route.meta.title))
+    },
+    defaultPageValues: function () {
+      // avoid Vue parsing issues by excluding '/' from path values
+      return this.defaultPages.map((route) => route.path.substring(1))
+    },
     backendPreference: function () {
+      if (!process.env.SUPPORTS_LOCAL_API && this.$store.getters.getBackendPreference === 'local') {
+        this.handlePreferredApiBackend('invidious')
+      }
+
       return this.$store.getters.getBackendPreference
     },
     landingPage: function () {
+      const landingPage = this.$store.getters.getLandingPage
+      // invalidate landing page selection & restore to default value if no longer valid
+      if (!this.defaultPageValues.includes(landingPage)) {
+        this.updateLandingPage('subscriptions')
+      }
       return this.$store.getters.getLandingPage
     },
     region: function () {
@@ -95,7 +123,7 @@ export default Vue.extend({
       return this.$store.getters.getListType
     },
     thumbnailPreference: function () {
-      return this.$store.getters.getThumbnailPreference
+      return this.blurThumbnails ? 'blur' : this.$store.getters.getThumbnailPreference
     },
     currentLocale: function () {
       return this.$store.getters.getCurrentLocale
@@ -112,33 +140,35 @@ export default Vue.extend({
     defaultInvidiousInstance: function () {
       return this.$store.getters.getDefaultInvidiousInstance
     },
+    generalAutoLoadMorePaginatedItemsEnabled() {
+      return this.$store.getters.getGeneralAutoLoadMorePaginatedItemsEnabled
+    },
 
     localeOptions: function () {
-      return ['system'].concat(Object.keys(this.$i18n.messages))
+      return [
+        'system',
+        ...allLocales
+      ]
     },
 
     localeNames: function () {
-      const names = [
-        this.$t('Settings.General Settings.System Default')
+      return [
+        this.$t('Settings.General Settings.System Default'),
+        ...process.env.LOCALE_NAMES
       ]
-
-      Object.keys(this.$i18n.messages).forEach((locale) => {
-        const localeName = this.$i18n.messages[locale]['Locale Name']
-        if (typeof localeName !== 'undefined') {
-          names.push(localeName)
-        } else {
-          names.push(locale)
-        }
-      })
-
-      return names
     },
 
     backendNames: function () {
-      return [
-        this.$t('Settings.General Settings.Preferred API Backend.Invidious API'),
-        this.$t('Settings.General Settings.Preferred API Backend.Local API')
-      ]
+      if (process.env.SUPPORTS_LOCAL_API) {
+        return [
+          this.$t('Settings.General Settings.Preferred API Backend.Invidious API'),
+          this.$t('Settings.General Settings.Preferred API Backend.Local API')
+        ]
+      } else {
+        return [
+          this.$t('Settings.General Settings.Preferred API Backend.Invidious API')
+        ]
+      }
     },
 
     viewTypeNames: function () {
@@ -153,7 +183,9 @@ export default Vue.extend({
         this.$t('Settings.General Settings.Thumbnail Preference.Default'),
         this.$t('Settings.General Settings.Thumbnail Preference.Beginning'),
         this.$t('Settings.General Settings.Thumbnail Preference.Middle'),
-        this.$t('Settings.General Settings.Thumbnail Preference.End')
+        this.$t('Settings.General Settings.Thumbnail Preference.End'),
+        this.$t('Settings.General Settings.Thumbnail Preference.Hidden'),
+        this.$t('Settings.General Settings.Thumbnail Preference.Blur')
       ]
     },
 
@@ -167,9 +199,13 @@ export default Vue.extend({
         this.$t('Settings.General Settings.External Link Handling.Ask Before Opening Link'),
         this.$t('Settings.General Settings.External Link Handling.No Action')
       ]
+    },
+
+    openDeepLinksInNewWindow: function () {
+      return this.$store.getters.getOpenDeepLinksInNewWindow
     }
   },
-  mounted: function () {
+  created: function () {
     this.setCurrentInvidiousInstanceBounce =
       debounce(this.setCurrentInvidiousInstance, 500)
   },
@@ -181,13 +217,16 @@ export default Vue.extend({
       // synchronous), unfortunately, we have to copy/paste the logic
       // from the `setRandomCurrentInvidiousInstance` action onto here
       const instanceList = this.invidiousInstancesList
-      const randomIndex = Math.floor(Math.random() * instanceList.length)
-      this.setCurrentInvidiousInstance(instanceList[randomIndex])
+      this.setCurrentInvidiousInstance(randomArrayItem(instanceList))
     }
   },
   methods: {
     handleInvidiousInstanceInput: function (input) {
-      const instance = input.replace(/\/$/, '')
+      let instance = input
+      // If NOT something like https:// (1-2 slashes), remove trailing slash
+      if (!/^(https?):(\/){1,2}$/.test(input)) {
+        instance = input.replace(/\/$/, '')
+      }
       this.setCurrentInvidiousInstanceBounce(instance)
     },
 
@@ -195,26 +234,22 @@ export default Vue.extend({
       const instance = this.currentInvidiousInstance
       this.updateDefaultInvidiousInstance(instance)
 
-      const message = this.$t('Default Invidious instance has been set to $')
-      this.showToast({
-        message: message.replace('$', instance)
-      })
+      const message = this.$t('Default Invidious instance has been set to {instance}', { instance })
+      showToast(message)
     },
 
     handleClearDefaultInstanceClick: function () {
       this.updateDefaultInvidiousInstance('')
-      this.showToast({
-        message: this.$t('Default Invidious instance has been cleared')
-      })
+      showToast(this.$t('Default Invidious instance has been cleared'))
     },
 
     handlePreferredApiBackend: function (backend) {
       this.updateBackendPreference(backend)
-      console.log(backend)
+    },
 
-      if (backend === 'local') {
-        this.updateForceLocalBackendForLegacy(false)
-      }
+    handleThumbnailPreferenceChange: function (value) {
+      this.updateBlurThumbnails(value === 'blur')
+      this.updateThumbnailPreference(value)
     },
 
     ...mapMutations([
@@ -222,9 +257,9 @@ export default Vue.extend({
     ]),
 
     ...mapActions([
-      'showToast',
       'updateEnableSearchSuggestions',
       'updateBackendFallback',
+      'updateBlurThumbnails',
       'updateCheckForUpdates',
       'updateCheckForBlogPosts',
       'updateBarColor',
@@ -234,9 +269,10 @@ export default Vue.extend({
       'updateRegion',
       'updateListType',
       'updateThumbnailPreference',
-      'updateForceLocalBackendForLegacy',
       'updateCurrentLocale',
-      'updateExternalLinkHandling'
+      'updateExternalLinkHandling',
+      'updateGeneralAutoLoadMorePaginatedItemsEnabled',
+      'updateOpenDeepLinksInNewWindow',
     ])
   }
 })

@@ -1,25 +1,69 @@
 .card {
-  width: 85%;
-  margin: 0 auto;
-  margin-bottom: 10px;
-  word-wrap: break-word;
+  margin-block: 0 60px;
+  margin-inline: auto;
+  inline-size: 85%;
 }
 
-.logo {
-  width: 500px;
-  max-width: 100%;
-}
-
-.center {
+.brand {
   text-align: center;
 }
 
-.leftAlign {
-  text-align: left;
+.logo {
+  max-inline-size: 100%;
+  inline-size: 500px;
 }
 
-@media only screen and (max-width: 680px) {
+.version {
+  text-align: center;
+  font-size: 2em;
+  margin-block-end: 1em;
+}
+
+.about-chunks {
+  display: grid;
+  grid-gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  margin-block: 80;
+  margin-inline: auto;
+  max-inline-size: 860px;
+}
+
+.chunk {
+  align-items: start;
+  background-color: var(--bg-color);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px -1px rgb(0 0 0 / 50%);
+  display: grid;
+  grid-gap: 6px 14px;
+  grid-template: 'icon title' auto 'icon content' 1fr / auto 1fr;
+  justify-content: start;
+  margin: 0;
+  padding: 18px;
+  word-break: break-word;
+}
+
+.icon {
+  font-size: 24px;
+  grid-area: icon;
+}
+
+.title {
+  grid-area: title;
+  margin: 0;
+}
+
+.content {
+  grid-area: content;
+}
+
+@media only screen and (width <=650px) {
+  .about-chunks {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media only screen and (width <=680px) {
   .card {
-    width: 90%;
+    inline-size: 90%;
   }
 }

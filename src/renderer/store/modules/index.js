@@ -1,14 +1,26 @@
 /**
  * The file enables `@/store/index.js` to import all vuex modules
- * in a one-shot manner. There should not be any reason to edit this file.
+ * in a one-shot manner.
  */
 
-const files = require.context('.', false, /\.js$/)
-const modules = {}
+import history from './history'
+import invidious from './invidious'
+import playlists from './playlists'
+import profiles from './profiles'
+import settings from './settings'
+import searchHistory from './search-history'
+import subscriptionCache from './subscription-cache'
+import utils from './utils'
+import player from './player'
 
-files.keys().forEach(key => {
-  if (key === './index.js') return
-  modules[key.replace(/(\.\/|\.js)/g, '')] = files(key).default
-})
-
-export default modules
+export default {
+  history,
+  invidious,
+  playlists,
+  profiles,
+  settings,
+  searchHistory,
+  subscriptionCache,
+  utils,
+  player,
+}

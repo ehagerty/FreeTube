@@ -4,7 +4,7 @@
       <h2>
         {{ $t("Profile.Subscription List") }}
       </h2>
-      <p>
+      <p class="selectedCount">
         {{ selectedText }}
       </p>
       <ft-flex-box>
@@ -12,6 +12,7 @@
           v-for="(channel, index) in subscriptions"
           :key="index"
           :ref="`channel-${index}`"
+          :channel-id="channel.id"
           :channel-name="channel.name"
           :channel-thumbnail="channel.thumbnail"
           :show-selected="true"
@@ -29,8 +30,8 @@
         />
         <ft-button
           :label="$t('Profile.Delete Selected')"
-          text-color="var(--text-with-main-color)"
-          background-color="var(--primary-color)"
+          text-color="var(--destructive-text-color)"
+          background-color="var(--destructive-color)"
           @click="displayDeletePrompt"
         />
       </ft-flex-box>
@@ -40,6 +41,7 @@
       :label="deletePromptMessage"
       :option-names="deletePromptNames"
       :option-values="deletePromptValues"
+      :is-first-option-destructive="true"
       @click="handleDeletePromptClick"
     />
   </div>

@@ -5,36 +5,22 @@
     <meta charset="utf-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0" />
+    <% if (!process.env.IS_ELECTRON) { %>
     <link rel="manifest" href="static/manifest.json" />
-    <title></title>
-    <% if (htmlWebpackPlugin.options.nodeModules) { %>
-    <script>
-      require('module').globalPaths.push(
-        `<%= htmlWebpackPlugin.options.nodeModules.replace(/\\/g, '\\\\') %>`
-      )
-    </script>
     <% } %>
+    <title></title>
   </head>
 
   <body>
     <div id="app"></div>
-    <!-- Set `__static` path to static files in production -->
-    <script>
-    try {
-      if (process.env.NODE_ENV !== 'development')
-        window.__static = require('path')
-          .join(__dirname, '/static')
-          .replace(/\\/g, '\\\\')
-      } catch {}
-    </script>
-
+    <% if (!process.env.IS_ELECTRON) { %>
     <script>
     // This is the service worker with the Advanced caching
 
     // Add this below content to your HTML page, or add the js file to your page at the very top to register service worker
 
     // Check compatibility for the browser we're running this in
-    if ("serviceWorker" in navigator && (window && window.process && window.process.type !== 'renderer')) {
+    if ("serviceWorker" in navigator) {
       if (navigator.serviceWorker.controller) {
         console.log("[PWA Builder] active service worker found, no need to register");
       } else {
@@ -49,6 +35,7 @@
       }
     }
     </script>
+    <% } %>
     <!-- webpack builds are automatically injected -->
   </body>
 

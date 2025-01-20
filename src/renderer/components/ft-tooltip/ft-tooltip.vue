@@ -5,16 +5,18 @@
       class="button"
       type="button"
     >
-      <font-awesome-icon icon="question-circle" />
+      <font-awesome-icon :icon="['fas', 'question-circle']" />
     </button>
     <p
       :id="id"
       class="text"
-      :class="position"
+      :class="{
+        [position]: true,
+        allowNewlines,
+      }"
       role="tooltip"
-    >
-      {{ tooltip }}
-    </p>
+      v-text="tooltip"
+    />
   </div>
 </template>
 

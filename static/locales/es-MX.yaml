@@ -1,4 +1,3 @@
-FreeTube: 'FreeTube'
 # Currently on Subscriptions, Playlists, and History
 'This part of the app is not ready yet. Come back later when progress has been made.': >-
   Esta parte de la aplicación aún no está lista. Vuelva más tarde cuando se haya avanzado.
@@ -27,13 +26,20 @@ Close: 'Cerrar'
 Back: 'Volver'
 Forward: 'Adelante'
 
+# Global
+# Anything shared among components / views should be put here
+Global:
+  Videos: 'Videos'
+
 # Search Bar
+  Community: Comunidad
+  Live: En vivo
+  Sort By: 'Ordenar por'
 Search / Go to URL: 'Buscar / Ir a la URL'
   # In Filter Button
 Search Filters:
   Search Filters: 'Filtros de búsqueda'
   Sort By:
-    Sort By: 'Ordenar por'
     Most Relevant: 'Más relevante'
     Rating: 'Clasificación'
     Upload Date: 'Fecha de carga'
@@ -63,19 +69,20 @@ Search Filters:
   Fetch more results: 'Obtener más resultados'
 # Sidebar
   There are no more results for this search: No hay más resultados para ésta búsqueda
+  Features:
+    Features: Características
+    Subtitles: Subtitulos
 Subscriptions:
     # On Subscriptions Page
   Subscriptions: 'Suscripciones'
-  Latest Subscriptions: 'Últimas Suscripciones'
   'Your Subscription list is currently empty. Start adding subscriptions to see them here.': 'Tu
     lista de Suscripción está actualmente vacía. Empieza añadiendo suscripciones para
     verlas ahí.'
-  'Getting Subscriptions.  Please wait.': 'Obteniendo Suscripciones. Por favor espere.'
-  Refresh Subscriptions: Actulizar Suscripciones
-  Getting Subscriptions. Please wait.: Obteniendo Suscripciones. Por favor espere.
   Load More Videos: Cargar más videos
-  This profile has a large number of subscriptions.  Forcing RSS to avoid rate limiting: Este
+  This profile has a large number of subscriptions. Forcing RSS to avoid rate limiting: Este
     perfil tiene un gran número de suscripciones. Forzando RSS para evitar limitaciones
+  Error Channels: Canales con errores
+  Empty Channels: Sus canales suscritos no tienen ningún video actualmente.
 Trending:
   Trending: 'Tendencias'
   Default: Predeterminado
@@ -90,12 +97,6 @@ User Playlists:
   Search bar placeholder: Buscar en la lista de reproducción
   Empty Search Message: No hay videos en esta lista de reproducción que coincidan
     con su búsqueda
-  Playlist Message: Esta página no muestra listas de reproducción funcionales. Únicamente
-    enlista videos que ha guardado o marcado en favoritos. Una vez terminado el proyecto,
-    todos los videos de aquí serán trasladados a la lista de 'Favoritos'.
-  Your saved videos are empty. Click on the save button on the corner of a video to have it listed here: Aún
-    no ha guardado videos. Haga clic en el botón de guardado en la esquina de cualquier
-    video para enlistarlo aquí
 History:
   # On History Page
   History: 'Historial'
@@ -127,8 +128,6 @@ Settings:
       Beginning: 'Comienzo'
       Middle: 'Medio'
       End: 'Fin'
-    'Invidious Instance (Default is https://invidious.snopyta.org)': 'Instancia de
-      Invidious (por defecto es https://invidious.snopyta.org)'
     Region for Trending: 'Tendencia por región'
         #! List countries
     Check for Updates: Buscar actualizaciones
@@ -137,8 +136,8 @@ Settings:
       al iniciar la app
     System Default: Por defecto
     Current Invidious Instance: 'Dirección de Invidious actual:'
-    The currently set default instance is $: La dirección por defecto actualmente
-      establecida es $
+    The currently set default instance is {instance}: La dirección por defecto actualmente
+      establecida es {instance}
     No default instance has been set: No se ha establecido ninguna dirección por defecto
     Set Current Instance as Default: Establecer la dirección actual por defecto
     Clear Default Instance: Borrar dirección por defecto
@@ -192,8 +191,6 @@ Settings:
     Hide Side Bar Labels: Ocultar etiquetas de la barra lateral
   Player Settings:
     Player Settings: 'Ajustes del reproductor'
-    Force Local Backend for Legacy Formats: 'Forzar motor local para el formato heredado'
-    Remember History: 'Recordar historial'
     Play Next Video: 'Reproducir el video siguiente'
     Turn on Subtitles by Default: 'Activar subtitulos por defecto'
     Autoplay Videos: 'Reproduccion automatica'
@@ -230,42 +227,7 @@ Settings:
   Subscription Settings:
     Subscription Settings: 'Ajustes de suscripción'
     Hide Videos on Watch: 'Ocultar videos vistos'
-    Subscriptions Export Format:
-      Subscriptions Export Format: 'Formato de exportación de suscripciones'
-      #& Freetube
-      Newpipe: 'Newpipe'
-      OPML: 'OPML'
-    Manage Subscriptions: 'Administrar suscripciones'
-    Import Subscriptions: 'Importa tus suscripciones'
-    Export Subscriptions: 'Exporta tus suscripciones'
-    How do I import my subscriptions?: '¿Cómo importo mis suscripciones?'
     Fetch Feeds from RSS: Buscar Información desde RSS
-  Advanced Settings:
-    Advanced Settings: 'Ajustes avanzados'
-    Enable Debug Mode (Prints data to the console): 'Activar modo de depuración (Muestra
-      datos en la consola)'
-    'Proxy Address (Example: SOCKS5://127.0.0.1:9050 )': 'Dirección de mascara (Ejemplo:
-      SOCKS5://127.0.0.1:9050 )'
-    'Clicking "TEST PROXY" button will send a request to https://ipinfo.io/json': 'Presionando
-      el botón "PROBAR MASCARA" enviará una solicitud a https://ipinfo.io/json'
-    Use Tor / Proxy for API calls: 'Usar Tor / Mascara para las llamadas API'
-    TEST PROXY: 'PROBAR MASCARA'
-    #& Invidious Instance (Default is https://invidious.snopyta.org)
-    See Public Instances: 'Ver Instancias Públicas'
-    Clear History:
-      Clear History: 'Borrar Historial'
-      # On Click
-      Are you sure you want to delete your history?: '¿Está seguro de que desea eliminar
-        su historial?'
-      #& Yes
-      #& No
-    Clear Subscriptions:
-      Clear Subscriptions: 'Borrar Suscripciones'
-      # On Click
-      Are you sure you want to remove all subscriptions?: '¿Está seguro de que desea
-        eliminar todas las suscripciones?'
-      #& Yes
-      #& No
 
   Privacy Settings:
     Search cache has been cleared: Se ha borrado la caché de búsqueda
@@ -283,7 +245,6 @@ Settings:
     Are you sure you want to remove all subscriptions and profiles?  This cannot be undone.: ¿Estás
       seguro de que deseas eliminar todos los suscripciones y perfiles? Esto no puede
       ser deshecho.
-    Automatically Remove Video Meta Files: Borrar automáticamente metadatos del video
   Data Settings:
     How do I import my subscriptions?: ¿Cómo puedo importar mis suscripciones?
     Export History: Exportar Historia
@@ -292,12 +253,8 @@ Settings:
     Export YouTube: Exportar YouTube
     Export FreeTube: Exportar FreeTube
     Export Subscriptions: Exportar Suscripciones
-    Import NewPipe: Importar NewPipe
-    Import YouTube: Importar YouTube
-    Import FreeTube: Importar FreeTube
     Import Subscriptions: Importar Suscripciones
     Select Export Type: Seleccionar tipo de exportación
-    Select Import Type: Seleccionar tipo de importación
     Data Settings: Ajustes de datos
     All watched history has been successfully exported: Historial de reproducciones
       se exportó con éxito
@@ -306,8 +263,6 @@ Settings:
     This might take a while, please wait: Esto puede tomar un tiempo, por favor espera
     All subscriptions and profiles have been successfully imported: Suscripciones
       y perfiles se importaron con éxito
-    One or more subscriptions were unable to be imported: Una o más suscripciones
-      no se pudo importar
     All subscriptions have been successfully imported: Suscripciones se importaron
       con éxito
     Subscriptions have been successfully exported: Suscripciones se exportaron con
@@ -323,12 +278,11 @@ Settings:
       datos insuficientes, ignorando artículo
     Import Playlists: Importar listas de reproducción
     Export Playlists: Exportar listas de reproducción
-    Check for Legacy Subscriptions: Revisar suscripciones heredadas
     All playlists has been successfully exported: Todas sus listas de reproducción
       han sido exportadas con éxito
     All playlists has been successfully imported: Todas sus listas han sido importadas
       con éxito
-    Playlist insufficient data: Datos insuficientes de la lista "$", omitiendo
+    Playlist insufficient data: Datos insuficientes de la lista "{playlist}", omitiendo
     Manage Subscriptions: Administrar suscripciones
   The app needs to restart for changes to take effect. Restart and apply change?: El
     programa requiere reiniciarse para que los cambios hagan efecto. ¿Desea reiniciar
@@ -382,42 +336,13 @@ About:
   #On About page
   About: 'Acerca de'
   #& About
-  'This software is FOSS and released under the GNU Affero General Public License v3.0.': 'Este
-    software copylefted tiene licencia libre AGPL-3.0.'
-
-  'Found a bug? Want to suggest a feature? Want to help out? Check out our GitHub page. Pull requests are welcome.': >-
-    ¿Encontraste un bug? ¿Quieres sugerir una nueva característica? ¿Quieres ayudar?
-    Visita nuestra página de Github. Las contribuciones son bienvenidas.
-
-  Thank you very much to the People and Projects that make FreeTube possible!: '¡Muchas
-    gracias a las personas y proyectos que hacen posible FreeTube!'
-
-  'Want to chat? Join our Element / Matrix Server . Please check the rules before joining.': '¿Desea
-    chatear? Únete a nuestro servidor de Element / Matrix. Por favor revise las reglas
-    antes de unirse.'
-
-  'Looking for help? Check out our Wiki page.': '¿Buscando ayuda? Visite nuestra pagina
-    de Wiki.'
-
-  Check out our Firefox extension!: '¡Prueba nuestra extensión para Firefox!'
-
-  'If you enjoy using FreeTube, consider donating via Liberapay or through our Bitcoin address.': 'Si
-    te gusta usar Free Tube, considera donar a través de Liberapay o a través de nuestra
-    dirección de Bitcoin.'
-
-  #~ 'BTC: 1Lih7Ho5gnxb1CwPD4o59ss78pwo2T91eS'
-
-  Latest FreeTube News: 'Últimas noticias de FreeTube'
-
 #On Channel Page
   Blog: Blog
   Website: Sitio web
   Email: Correo electrónico
   Mastodon: Mastodon
   Source code: Código fuente
-  View License: Ver licencia
   Beta: Beta
-  Licensed under the AGPLv3: Bajo licencia de AGPLv3
   Downloads / Changelog: Descargas / Informe de cambios
   GitHub releases: Lanzamientos en GitHub
   Help: Ayuda
@@ -435,14 +360,11 @@ About:
   Donate: Donar
   Credits: Créditos
 Channel:
-  Subscriber: 'Suscriptor'
-  Subscribers: 'Suscriptores'
   Subscribe: 'Suscribir'
   Unsubscribe: 'Desuscribir'
   Search Channel: 'Buscar canal'
   Your search results have returned 0 results: 'Los resultados de su búsqueda han
     arrojado 0 resultados'
-  Sort By: 'Ordenar por'
   Videos:
     Videos: 'Videos'
     This channel does not currently have any videos: 'Este canal no tiene ningun video
@@ -463,8 +385,12 @@ Channel:
     About: 'Acerca de'
     Channel Description: 'Descripción del canal'
     Featured Channels: 'Canales destacados'
+    Tags:
+      Search for: Buscar por «{tag}»
+    Details: Detalles
   Added channel to your subscriptions: Canal añadido a sus suscripciones
-  Removed subscription from $ other channel(s): Suscripción eliminada de $ otros canales
+  Removed subscription from {count} other channel(s): Suscripción eliminada de {count}
+    otros canales
   Channel has been removed from your subscriptions: El canal ha sido eliminado de
     sus suscripciones
 Video:
@@ -479,10 +405,7 @@ Video:
     YouTube'
   Open in Invidious: 'Abrir en Invidious'
   Copy Invidious Link: 'Copiar enlace de Invidious'
-  View: 'Ver'
   Views: 'Vistas'
-  # Context is "X People Watching"
-  Watching: 'Viendo'
   Watched: 'Visto'
   # As in a Live Video
   Live: 'En vivo'
@@ -491,45 +414,12 @@ Video:
   Enable Live Chat: 'Activar chat en vivo'
   Live Chat is currently not supported in this build.: 'El chat en vivo no esta soportado
     actualmente en esta compilación.'
-  'Chat is disabled or the Live Stream has ended.': 'El chat esta desactivado o la
-    transmisión en vivo ha terminado.'
-  Live chat is enabled.  Chat messages will appear here once sent.: 'El chat en vivo
+  Live chat is enabled. Chat messages will appear here once sent.: 'El chat en vivo
     esta activado. Los mensajes del chat aparecerán aquí cuando sean enviados.'
-  'Live Chat is currently not supported with the Invidious API.  A direct connection to YouTube is required.': 'El
+  'Live Chat is currently not supported with the Invidious API. A direct connection to YouTube is required.': 'El
     chat en vivo no esta soportado actualmente con la API de Invidious. Es necesaria
     una conexión directa a YouTube.'
-  Published:
-    Jan: 'Ene'
-    Feb: 'Feb'
-    Mar: 'Mar'
-    Apr: 'Abr'
-    May: 'May'
-    Jun: 'Jun'
-    Jul: 'Jul'
-    Aug: 'Ago'
-    Sep: 'Sep'
-    Oct: 'Oct'
-    Nov: 'Nov'
-    Dec: 'Dic'
-    Second: 'Segundo'
-    Seconds: 'Segundos'
-    Hour: 'Hora'
-    Hours: 'Horas'
-    Day: 'Dia'
-    Days: 'Dias'
-    Week: 'Semana'
-    Weeks: 'Semanas'
-    Month: 'Mes'
-    Months: 'Meses'
-    Year: 'Año'
-    Years: 'Años'
-    Ago: 'Hace'
-    Upcoming: 'Pronto en estreno'
-    Minutes: minutos
-    Minute: minuto
   Published on: 'Publicado en'
-  # $ is replaced with the number and % with the unit (days, hours, minutes...)
-  Publicationtemplate: 'Hace $ %'
 #& Videos
   Autoplay: Reproducción Automática
   Play Previous Video: Reproducir el video anterior
@@ -537,29 +427,11 @@ Video:
   Reverse Playlist: Lista de reproducción invertida
   Shuffle Playlist: Lista de reproducción aleatoria
   Loop Playlist: Lista de reproducción en bucle
-  translated from English: traducido del inglés
-  Stats:
-    Mimetype: Tipo de medio
-    Resolution: Resolución
-    Player Dimensions: Tamaño del reproductor
-    Bitrate: Tasa de bits
-    Volume: Volumen
-    Bandwidth: Ancho de banda
-    Video statistics are not available for legacy videos: Estadísticas no disponibles
-      para videos heredados
-    Video ID: ID del video
-    Buffered: Amplificado
-    Dropped / Total Frames: Caídos / Fotogramas totales
   Video has been removed from your saved list: El video se ha eliminado de su lista
     de guardado
   Video has been saved: Video guardado
   Starting soon, please refresh the page to check again: Empezará pronto, por favor
     actualice la página para volver a revisar
-  Audio:
-    Best: Máxima
-    Low: Baja
-    Medium: Media
-    High: Alta
   External Player:
     Unsupported Actions:
       reversing playlists: revirtiendo listas
@@ -570,9 +442,9 @@ Video:
         el video específico en una lista (reponiéndolo para abrir el video)
       looping playlists: listas de reproducción en bucle
       shuffling playlists: listas de reproducción mezcladas
-    OpeningTemplate: Abriendo $ en %...
-    UnsupportedActionTemplate: '$ no soporta: %'
-    OpenInTemplate: Abrir en $
+    OpeningTemplate: Abriendo {videoOrPlaylist} en {externalPlayer}...
+    UnsupportedActionTemplate: '{externalPlayer} no soporta: {action}'
+    OpenInTemplate: Abrir en {externalPlayer}
     video: video
     playlist: lista de reproducción
   Sponsor Block category:
@@ -591,37 +463,19 @@ Video:
   Open Channel in Invidious: Abrir canal en Invidious
   Copy Invidious Channel Link: Copiar link del canal en Invidious
   Copy YouTube Channel Link: Copiar link del canal en YouTube
-  Premieres on: En estreno
-  Skipped segment: Omitida esta parte
   Download Video: Descargar video
-Videos:
-  #& Sort By
-  Sort By:
-    Newest: 'Mas nuevo'
-    Oldest: 'Mas viejo'
-    #& Most Popular
 #& Playlists
 Playlist:
   #& About
   View Full Playlist: 'Ver lista de reproducción completa'
-  Videos: 'Videos'
-  View: 'Vista'
-  Views: 'Vistas'
   Last Updated On: 'Última actualización el'
-  Share Playlist:
-    Share Playlist: 'Compartir lista de reproducción'
-    Copy YouTube Link: 'Copiar enlace de YouTube'
-    Open in YouTube: 'Abrir en Youtube'
-    Copy Invidious Link: 'Copiar enlace de Invidious'
-    Open in Invidious: 'Abrir en Invidious'
 
 # On Video Watch Page
 #* Published
 #& Views
   Playlist: Lista de reproducción
-Toggle Theatre Mode: 'Alternar modo teatro'
 Change Format:
-  Change Video Formats: 'Cambia formatos de vídeo'
+  Change Media Formats: 'Cambia formatos de vídeo'
   Use Dash Formats: 'Usar formatos DASH'
   Use Legacy Formats: 'Usar formatos heredados'
   Use Audio Formats: 'Usa formatos de audio'
@@ -631,6 +485,7 @@ Change Format:
     este video
 Share:
   Share Video: 'Compartir Video'
+  Share Playlist: 'Compartir lista de reproducción'
   Copy Link: 'Copiar enlace'
   Open Link: 'Abrir enlace'
   Copy Embed: 'Copiar incrustado'
@@ -651,7 +506,6 @@ Comments:
   Click to View Comments: 'Presione para Ver Comentarios'
   Getting comment replies, please wait: 'Recibiendo respuestas de comentarios, por
     favor espere'
-  Show Comments: 'Mostrar comentarios'
   Hide Comments: 'Esconde comentarios'
   # Context: View 10 Replies, View 1 Reply
   View: 'Vista'
@@ -664,13 +518,11 @@ Comments:
   Top comments: Más populares
   Member: Miembro
   Pinned by: Fijado por
-  From $channelName: de $channelName
+  From {channelName}: de {channelName}
   And others: y otros
   There are no more comments for this video: No hay más comentarios en este video
   Newest first: Más recientes
-  Sort by: Ordenar por
   Show More Replies: Mostrar más respuestas
-  No more comments available: No hay más comentarios disponibles
 Up Next: 'A continuación'
 
 # Toast Messages
@@ -678,34 +530,30 @@ Local API Error (Click to copy): 'Error de la API local (Presione para copiar)'
 Invidious API Error (Click to copy): 'Error de la API de Invidious (Presione para
   copiar)'
 Falling back to Invidious API: 'Recurriendo a la API de Invidious'
-Falling back to the local API: 'Recurriendo a la API local'
-Subscriptions have not yet been implemented: 'Las suscripciones aún no se han implementado'
+Falling back to Local API: 'Recurriendo a la API local'
 Loop is now disabled: 'El bucle esta desactivado'
 Loop is now enabled: 'El bucle esta activado'
 Shuffle is now disabled: 'La reproducción aleatoria se ha desactivada'
 Shuffle is now enabled: 'La reproducción aleatoria se ha activado'
 Playing Next Video: 'Reproduciendo el video siguiente'
 Playing Previous Video: 'Reproduciendo el video anterior'
-Playing next video in 5 seconds.  Click to cancel: 'Reproduciendo el video siguiente
-  en 5 segundos. Presione para cancelar.'
 Canceled next video autoplay: 'Reproducción automática del siguiente video cancelado'
-'The playlist has ended.  Enable loop to continue playing': 'La lista de reproducción
+'The playlist has ended. Enable loop to continue playing': 'La lista de reproducción
   ha terminado. Activa el bucle para continuar reproduciendo'
 
 Yes: 'Sí'
 No: 'No'
 Locale Name: español (MX)
 Profile:
-  $ is now the active profile: $ ahora es el perfil activo
+  '{profile} is now the active profile': '{profile} ahora es el perfil activo'
   Your default profile has been changed to your primary profile: Su perfil predeterminado
     se ha cambiado a su perfil principal
-  Removed $ from your profiles: Se eliminó $ de sus perfiles
-  Your default profile has been set to $: Su perfil predeterminado ha sido establecido
-    a $
+  Removed {profile} from your profiles: Se eliminó {profile} de sus perfiles
+  Your default profile has been set to {profile}: Su perfil predeterminado ha sido
+    establecido a {profile}
   Profile has been updated: El perfil ha sido actualizado
   Profile has been created: El profil ha sido creado
   Your profile name cannot be empty: Su nombre de perfil no puede estar vacío
-  Profile could not be found: No se puede localizar el perfil
   All subscriptions will also be deleted.: Todas las suscripciones serán borradas
     también.
   Are you sure you want to delete this profile?: ¿Está seguro que quiere borrar este
@@ -734,17 +582,17 @@ Profile:
   Add Selected To Profile: Añadir Seleccionado al Perfil
   Delete Selected: Borrar Seleccionado
   Select All: Seleccionar Todo
-  $ selected: $ seleccionado
+  '{number} selected': '{number} seleccionado'
   Other Channels: Otros Canales
   Subscription List: Lista de Suscripciones
   Profile Filter: Filtro de Perfil
   Profile Settings: Configuración de perfil
 The playlist has been reversed: La lista de reproducción ha sido invertida
-A new blog is now available, $. Click to view more: Un nuevo blog ya está disponible,
-  $. Presione para ver más
+A new blog is now available, {blogTitle}. Click to view more: Un nuevo blog ya está
+  disponible, {blogTitle}. Presione para ver más
 Download From Site: Descargar desde el sitio
-Version $ is now available!  Click for more details: Versión $ ya está disponible!
-  Presione para más detalles
+Version {versionNumber} is now available!  Click for more details: Versión {versionNumber}
+  ya está disponible! Presione para más detalles
 Open New Window: Abrir nueva ventana
 More: Más
 Are you sure you want to open this link?: ¿Estás seguro de abrir este link?
@@ -758,20 +606,19 @@ Tooltips:
     Invidious Instance: La dirección de Invidious a la que FreeTube se conectará para
       solicitudes de la API.
     Region for Trending: La región de tendencias le permitirá elegir las tendencias
-      del país que deseé ver mostradas. No todos los países mostrados están soportados
-      por YouTube.
+      del país que deseé ver mostradas.
     Thumbnail Preference: Todas las miniaturas a través de FreeTube serán reemplazadas
       con un fotograma del video en vez de su miniatura por defecto.
-    External Link Handling: "Elija el comportamiento previsto para cuando un link,\
-      \ que no pueda ser abierto en FreeTube, sea cliqueado.\nPor defecto FreeTube\
-      \ abrirá el link cliqueado en su navegador predeterminado.\n"
+    External Link Handling: "Elija el comportamiento previsto para cuando un link,
+      que no pueda ser abierto en FreeTube, sea cliqueado.\nPor defecto FreeTube abrirá
+      el link cliqueado en su navegador predeterminado.\n"
     Fallback to Non-Preferred Backend on Failure: Si la API que eligió sufre algún
       problema, FreeTube intentará usar automáticamente otra API como método de respaldo
       al activar esta opción.
   External Player Settings:
-    Custom External Player Arguments: Cualquier argumento, con separaciones de punto
-      y coma (';'), que deseé anticipar al reproductor externo.
-    DefaultCustomArgumentsTemplate: "(Por defecto: '$')"
+    Custom External Player Arguments: Cualquier argumento, que deseé anticipar al
+      reproductor externo.
+    DefaultCustomArgumentsTemplate: "(Por defecto: '{defaultCustomArguments}')"
     External Player: Elegir un reproductor externo mostrará un ícono, para abrir el
       video (o lista, si es compatible) en el reproductor externo, sobre la miniatura
       del video.
@@ -783,47 +630,51 @@ Tooltips:
       etc.).
   Player Settings:
     Proxy Videos Through Invidious: Se conectará a Invidious para obtener videos en
-      lugar de conectarse directamente a YouTube. Anulará la API seleccionada.
+      lugar de conectarse directamente a YouTube.
     Default Video Format: Establezca los formatos a usar cuando reproduce un video.
       Los formatos DASH pueden alcanzar mejores calidades. Los formatos heredados
       están limitados a un máximo de 720 píxeles de ancho, pero usan menos ancho de
       banda. Los formatos de audio permiten escuchar solamente el audio.
-    Force Local Backend for Legacy Formats: Sólo funcionará si la API de Invidious
-      está por defecto. Si se habilita, la API local ejecutará los formatos heredados
-      que encuentre en lugar de los que le dé Invidious. Esto ayuda a que los videos
-      proporcionados por Invidious puedan ser reproducidos sin impedimentos debidos
-      a la región.
     Scroll Playback Rate Over Video Player: Mientras el cursor esté sobre el video,
       mantenga presionada la tecla Ctrl (tecla Comando en Mac) y use la rueda del
       ratón hacia adelante o atrás para controlar la velocidad de reproducción. Mantenga
       presionada la tecla Ctrl (tecla Comando en Mac) y haga clic izquierdo para reestablecer
       la velocidad de reproducción predeterminada (que es de 1x, a menos que la haya
       cambiado en configuración).
-  Privacy Settings:
-    Remove Video Meta Files: Si se habilita, FreeTube borrará automáticamente los
-      metadatos creados al abrir el video, una vez que la ventana se cierre.
   Subscription Settings:
     Fetch Feeds from RSS: Si se habilita, FreeTube usará RSS en lugar del método predeterminado
       para recibir videos de sus suscripciones. RSS es más rápido y previene que bloqueen
       su IP, pero no es capaz de proveer ciertos datos del video, como su duración,
       o si está en directo
-Downloading has completed: '"$" ha acabado de descargarse'
+  Distraction Free Settings:
+    Hide Subscriptions Live: Esta configuración se reemplaza por la configuración
+      «{appWideSetting}» de toda la aplicación, en la sección «{subsection}» de «{settingsSection}»
+Downloading has completed: '"{videoTitle}" ha acabado de descargarse'
 Default Invidious instance has been cleared: La dirección de Invidious predeterminada
   se ha borrado
 External link opening has been disabled in the general settings: La apertura de links
   externos está deshabilitada en la configuración general
-Starting download: Comenzando descarga de "$"
-Downloading failed: Ha habido un error al descargar "$"
+Starting download: Comenzando descarga de "{videoTitle}"
+Downloading failed: Ha habido un error al descargar "{videoTitle}"
 This video is unavailable because of missing formats. This can happen due to country unavailability.: Este
   video no está disponible debido a que no se encontraron formatos. Esto puede suceder
   a causa de indisponibilidad en su región.
-Default Invidious instance has been set to $: La dirección de Invidious predeterminada
-  se ha establecido en $
+Default Invidious instance has been set to {instance}: La dirección de Invidious predeterminada
+  se ha establecido en {instance}
 Unknown YouTube url type, cannot be opened in app: Tipo de URL de YouTube desconocida,
   imposible de abrir en la app
-Hashtags have not yet been implemented, try again later: Las etiquetas aún no han
-  sido implementadas, próximamente estarán en nuevas versiones
 Playing Next Video Interval: El próximo video se abrirá inmediatamente. Haga clic
   aquí para cancelar. | Se abrirá el siguiente video en {nextVideoInterval} segundo.
   Haga clic aquí para cancelar. | Se abrirá el siguiente video en {nextVideoInterval}
   segundos. Haga clic aquí para cancelar.
+New Window: Nueva ventana
+Preferences: Preferencias
+Channels:
+  Channels: Canales
+  Title: Lista de Canales
+  Search bar placeholder: Buscar Canales
+Search Listing:
+  Label:
+    Subtitles: Subtítulos
+    New: Nuevo
+Go to page: Ir a {page}

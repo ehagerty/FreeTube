@@ -1,6 +1,9 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
+import { sanitizeForHtmlId } from '../../helpers/accessibility'
+import { MAIN_PROFILE_ID } from '../../../constants'
+import { getFirstCharacter } from '../../helpers/strings'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtProfileBubble',
   props: {
     profileName: {
@@ -20,16 +23,29 @@ export default Vue.extend({
       required: true
     }
   },
+  emits: ['click'],
   computed: {
+    locale: function () {
+      return this.$i18n.locale
+    },
+    isMainProfile: function () {
+      return this.profileId === MAIN_PROFILE_ID
+    },
+    sanitizedId: function() {
+      return 'profileBubble' + sanitizeForHtmlId(this.profileId)
+    },
     profileInitial: function () {
-      return this?.profileName?.length > 0 ? Array.from(this.profileName)[0].toUpperCase() : ''
+      return this.profileName
+        ? getFirstCharacter(this.translatedProfileName, this.locale).toUpperCase()
+        : ''
+    },
+    translatedProfileName: function () {
+      return this.isMainProfile ? this.$t('Profile.All Channels') : this.profileName
     }
   },
   methods: {
-    goToProfile: function () {
-      this.$router.push({
-        path: `/settings/profile/edit/${this.profileId}`
-      })
-    }
+    click: function() {
+      this.$emit('click')
+    },
   }
 })

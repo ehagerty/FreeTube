@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // This is the service worker with the Advanced caching
 
 const CACHE = 'pwabuilder-adv-cache'
@@ -52,10 +53,6 @@ self.addEventListener('install', function (event) {
       console.log('[PWA Builder] Caching pages during install')
 
       return cache.addAll(precacheFiles).then(function () {
-        if (offlineFallbackPage === 'ToDo-replace-this-name.html') {
-          return cache.add(new Response('TODO: Update the value of the offlineFallbackPage constant in the serviceworker.'))
-        }
-
         return cache.add(offlineFallbackPage)
       })
     })
@@ -110,7 +107,7 @@ function cacheFirstFetch(event) {
               return
             }
 
-            console.log('[PWA Builder] Network request failed and no cache.' + error)
+            console.error('[PWA Builder] Network request failed and no cache.' + error)
             // Use the precached offline page as fallback
             return caches.open(CACHE).then(function (cache) {
               cache.match(offlineFallbackPage)
@@ -130,7 +127,7 @@ function networkFirstFetch(event) {
         return response
       })
       .catch(function (error) {
-        console.log('[PWA Builder] Network request Failed. Serving content from cache: ' + error)
+        console.error('[PWA Builder] Network request Failed. Serving content from cache: ' + error)
         return fromCache(event.request)
       })
   )

@@ -1,13 +1,25 @@
-import IsEqual from 'lodash.isequal'
-import FtToastEvents from '../../components/ft-toast/ft-toast-events'
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import i18n from '../../i18n/index'
+import { set as vueSet } from 'vue'
 
 import { IpcChannels } from '../../../constants'
+import { pathExists } from '../../helpers/filesystem'
+import {
+  CHANNEL_HANDLE_REGEX,
+  createWebURL,
+  getVideoParamsFromUrl,
+  openExternalLink,
+  replaceFilenameForbiddenChars,
+  searchFiltersMatch,
+  showExternalPlayerUnsupportedActionToast,
+  showSaveDialog,
+  showToast
+} from '../../helpers/utils'
 
 const state = {
   isSideNavOpen: false,
+  outlinesHidden: true,
   sessionSearchHistory: [],
   popularCache: null,
   trendingCache: {
@@ -16,8 +28,18 @@ const state = {
     gaming: null,
     movies: null
   },
+  cachedPlaylist: null,
+  deArrowCache: {},
   showProgressBar: false,
+  showAddToPlaylistPrompt: false,
+  showCreatePlaylistPrompt: false,
+  isKeyboardShortcutPromptShown: false,
+  showSearchFilters: false,
+  searchFilterValueChanged: false,
   progressBarPercentage: 0,
+  toBeAddedToPlaylistVideoList: [],
+  newPlaylistDefaultProperties: {},
+  newPlaylistVideoObject: [],
   regionNames: [],
   regionValues: [],
   recentBlogPosts: [],
@@ -25,211 +47,166 @@ const state = {
     sortBy: 'relevance',
     time: '',
     type: 'all',
-    duration: ''
+    duration: '',
+    features: [],
   },
-  colorNames: [
-    'Red',
-    'Pink',
-    'Purple',
-    'DeepPurple',
-    'Indigo',
-    'Blue',
-    'LightBlue',
-    'Cyan',
-    'Teal',
-    'Green',
-    'LightGreen',
-    'Lime',
-    'Yellow',
-    'Amber',
-    'Orange',
-    'DeepOrange',
-    'DraculaCyan',
-    'DraculaGreen',
-    'DraculaOrange',
-    'DraculaPink',
-    'DraculaPurple',
-    'DraculaRed',
-    'DraculaYellow'
-  ],
-  colorValues: [
-    '#d50000',
-    '#C51162',
-    '#AA00FF',
-    '#6200EA',
-    '#304FFE',
-    '#2962FF',
-    '#0091EA',
-    '#00B8D4',
-    '#00BFA5',
-    '#00C853',
-    '#64DD17',
-    '#AEEA00',
-    '#FFD600',
-    '#FFAB00',
-    '#FF6D00',
-    '#DD2C00',
-    '#8BE9FD',
-    '#50FA7B',
-    '#FFB86C',
-    '#FF79C6',
-    '#BD93F9',
-    '#FF5555',
-    '#F1FA8C'
-  ],
   externalPlayerNames: [],
   externalPlayerValues: [],
-  externalPlayerCmdArguments: {}
+  externalPlayerCmdArguments: {},
+  lastPopularRefreshTimestamp: '',
+  lastTrendingRefreshTimestamp: '',
+  subscriptionFirstAutoFetchRunData: {
+    videos: false,
+    liveStreams: false,
+    shorts: false,
+    communityPosts: false,
+  },
+  appTitle: ''
 }
 
 const getters = {
-  getIsSideNavOpen () {
+  getIsSideNavOpen(state) {
     return state.isSideNavOpen
   },
 
-  getCurrentVolume () {
-    return state.currentVolume
+  getOutlinesHidden(state) {
+    return state.outlinesHidden
   },
 
-  getSessionSearchHistory () {
+  getSessionSearchHistory(state) {
     return state.sessionSearchHistory
   },
 
-  getPopularCache () {
+  getDeArrowCache: (state) => {
+    return state.deArrowCache
+  },
+
+  getPopularCache(state) {
     return state.popularCache
   },
 
-  getTrendingCache () {
+  getTrendingCache(state) {
     return state.trendingCache
   },
 
-  getSearchSettings () {
+  getCachedPlaylist(state) {
+    return state.cachedPlaylist
+  },
+
+  getSearchSettings(state) {
     return state.searchSettings
   },
 
-  getColorNames () {
-    return state.colorNames
+  getSearchFilterValueChanged(state) {
+    return state.searchFilterValueChanged
   },
 
-  getColorValues () {
-    return state.colorValues
+  getIsKeyboardShortcutPromptShown(state) {
+    return state.isKeyboardShortcutPromptShown
   },
 
-  getShowProgressBar () {
+  getShowAddToPlaylistPrompt(state) {
+    return state.showAddToPlaylistPrompt
+  },
+
+  getShowCreatePlaylistPrompt(state) {
+    return state.showCreatePlaylistPrompt
+  },
+
+  getShowSearchFilters(state) {
+    return state.showSearchFilters
+  },
+
+  getToBeAddedToPlaylistVideoList(state) {
+    return state.toBeAddedToPlaylistVideoList
+  },
+
+  getNewPlaylistDefaultProperties(state) {
+    return state.newPlaylistDefaultProperties
+  },
+
+  getNewPlaylistVideoObject(state) {
+    return state.newPlaylistVideoObject
+  },
+
+  getShowProgressBar(state) {
     return state.showProgressBar
   },
 
-  getProgressBarPercentage () {
+  getProgressBarPercentage(state) {
     return state.progressBarPercentage
   },
 
-  getRegionNames () {
+  getRegionNames(state) {
     return state.regionNames
   },
 
-  getRegionValues () {
+  getRegionValues(state) {
     return state.regionValues
   },
 
-  getRecentBlogPosts () {
+  getRecentBlogPosts(state) {
     return state.recentBlogPosts
   },
 
-  getExternalPlayerNames () {
+  getExternalPlayerNames(state) {
     return state.externalPlayerNames
   },
 
-  getExternalPlayerValues () {
+  getExternalPlayerValues(state) {
     return state.externalPlayerValues
   },
 
-  getExternalPlayerCmdArguments () {
+  getExternalPlayerCmdArguments (state) {
     return state.externalPlayerCmdArguments
+  },
+
+  getLastTrendingRefreshTimestamp(state) {
+    return state.lastTrendingRefreshTimestamp
+  },
+
+  getLastPopularRefreshTimestamp(state) {
+    return state.lastPopularRefreshTimestamp
+  },
+
+  getSubscriptionForVideosFirstAutoFetchRun(state) {
+    return state.subscriptionFirstAutoFetchRunData.videos === true
+  },
+  getSubscriptionForLiveStreamsFirstAutoFetchRun (state) {
+    return state.subscriptionFirstAutoFetchRunData.liveStreams === true
+  },
+  getSubscriptionForShortsFirstAutoFetchRun (state) {
+    return state.subscriptionFirstAutoFetchRunData.shorts === true
+  },
+  getSubscriptionForCommunityPostsFirstAutoFetchRun (state) {
+    return state.subscriptionFirstAutoFetchRunData.communityPosts === true
+  },
+  getAppTitle (state) {
+    return state.appTitle
   }
-}
-
-/**
- * Wrapper function that calls `ipcRenderer.invoke(IRCtype, payload)` if the user is
- * using Electron or a provided custom callback otherwise.
- * @param {Object} context Object
- * @param {String} IRCtype String
- * @param {Function} webCbk Function
- * @param {Object} payload any (default: null)
-*/
-
-async function invokeIRC(context, IRCtype, webCbk, payload = null) {
-  let response = null
-  const usingElectron = context.rootState.settings.usingElectron
-  if (usingElectron) {
-    const { ipcRenderer } = require('electron')
-    response = await ipcRenderer.invoke(IRCtype, payload)
-  } else if (webCbk) {
-    response = await webCbk()
-  }
-
-  return response
 }
 
 const actions = {
-  openExternalLink ({ rootState }, url) {
-    const usingElectron = rootState.settings.usingElectron
-    if (usingElectron) {
-      const ipcRenderer = require('electron').ipcRenderer
-      ipcRenderer.send(IpcChannels.OPEN_EXTERNAL_LINK, url)
-    } else {
-      // Web placeholder
-    }
+  showOutlines({ commit }) {
+    commit('setOutlinesHidden', false)
   },
 
-  replaceFilenameForbiddenChars(_, filenameOriginal) {
-    let filenameNew = filenameOriginal
-    let forbiddenChars = {}
-    switch (process.platform) {
-      case 'win32':
-        forbiddenChars = {
-          '<': '＜', // U+FF1C
-          '>': '＞', // U+FF1E
-          ':': '：', // U+FF1A
-          '"': '＂', // U+FF02
-          '/': '／', // U+FF0F
-          '\\': '＼', // U+FF3C
-          '|': '｜', // U+FF5C
-          '?': '？', // U+FF1F
-          '*': '＊' // U+FF0A
-        }
-        break
-      case 'darwin':
-        forbiddenChars = { '/': '／', ':': '：' }
-        break
-      case 'linux':
-        forbiddenChars = { '/': '／' }
-        break
-      default:
-        break
-    }
-
-    for (const forbiddenChar in forbiddenChars) {
-      filenameNew = filenameNew.replaceAll(forbiddenChar, forbiddenChars[forbiddenChar])
-    }
-    return filenameNew
+  hideOutlines({ commit }) {
+    commit('setOutlinesHidden', true)
   },
 
-  async downloadMedia({ rootState, dispatch }, { url, title, extension, fallingBackPath }) {
-    const fileName = `${await dispatch('replaceFilenameForbiddenChars', title)}.${extension}`
-    const usingElectron = rootState.settings.usingElectron
-    const locale = i18n._vm.locale
-    const translations = i18n._vm.messages[locale]
-    const startMessage = translations['Starting download'].replace('$', title)
-    const completedMessage = translations['Downloading has completed'].replace('$', title)
-    const errorMessage = translations['Downloading failed'].replace('$', title)
-    let folderPath = rootState.settings.downloadFolderPath
-
-    if (!usingElectron) {
-      // Add logic here in the future
+  async downloadMedia({ rootState }, { url, title, extension }) {
+    if (!process.env.IS_ELECTRON) {
+      openExternalLink(url)
       return
     }
 
-    if (folderPath === '') {
+    const fileName = `${replaceFilenameForbiddenChars(title)}.${extension}`
+    const errorMessage = i18n.t('Downloading failed', { videoTitle: title })
+    const askFolderPath = rootState.settings.downloadAskPath
+    let folderPath = rootState.settings.downloadFolderPath
+
+    if (askFolderPath) {
       const options = {
         defaultPath: fileName,
         filters: [
@@ -239,7 +216,7 @@ const actions = {
           }
         ]
       }
-      const response = await dispatch('showSaveDialog', { options })
+      const response = await showSaveDialog(options)
 
       if (response.canceled || response.filePath === '') {
         // User canceled the save dialog
@@ -248,39 +225,31 @@ const actions = {
 
       folderPath = response.filePath
     } else {
-      if (!fs.existsSync(folderPath)) {
+      if (!(await pathExists(folderPath))) {
         try {
-          fs.mkdirSync(folderPath, { recursive: true })
+          await fs.mkdir(folderPath, { recursive: true })
         } catch (err) {
           console.error(err)
-          this.showToast({
-            message: err
-          })
+          showToast(err)
           return
         }
       }
       folderPath = path.join(folderPath, fileName)
     }
 
-    dispatch('showToast', {
-      message: startMessage
-    })
+    showToast(i18n.t('Starting download', { videoTitle: title }))
 
     const response = await fetch(url).catch((error) => {
-      console.log(error)
-      dispatch('showToast', {
-        message: errorMessage
-      })
+      console.error(error)
+      showToast(errorMessage)
     })
 
     const reader = response.body.getReader()
     const chunks = []
 
     const handleError = (err) => {
-      console.log(err)
-      dispatch('showToast', {
-        message: errorMessage
-      })
+      console.error(err)
+      showToast(errorMessage)
     }
 
     const processText = async ({ done, value }) => {
@@ -301,133 +270,145 @@ const actions = {
     const blobFile = new Blob(chunks)
     const buffer = await blobFile.arrayBuffer()
 
-    fs.writeFile(folderPath, new DataView(buffer), (err) => {
-      if (err) {
-        console.error(err)
-        dispatch('showToast', {
-          message: errorMessage
-        })
-      } else {
-        dispatch('showToast', {
-          message: completedMessage
-        })
-      }
-    })
-  },
+    try {
+      await fs.writeFile(folderPath, new DataView(buffer))
 
-  async getSystemLocale (context) {
-    const webCbk = () => {
-      if (navigator && navigator.language) {
-        return navigator.language
-      }
+      showToast(i18n.t('Downloading has completed', { videoTitle: title }))
+    } catch (err) {
+      console.error(err)
+      showToast(errorMessage)
     }
-
-    return (await invokeIRC(context, IpcChannels.GET_SYSTEM_LOCALE, webCbk)) || 'en-US'
-  },
-
-  async showOpenDialog (context, options) {
-    // TODO: implement showOpenDialog web compatible callback
-    const webCbk = () => null
-    return await invokeIRC(context, IpcChannels.SHOW_OPEN_DIALOG, webCbk, options)
-  },
-
-  async showSaveDialog (context, { options, useModal = false }) {
-    // TODO: implement showSaveDialog web compatible callback
-    const webCbk = () => null
-    return await invokeIRC(context, IpcChannels.SHOW_SAVE_DIALOG, webCbk, { options, useModal })
-  },
-
-  async getUserDataPath (context) {
-    // TODO: implement getUserDataPath web compatible callback
-    const webCbk = () => null
-    return await invokeIRC(context, IpcChannels.GET_USER_DATA_PATH, webCbk)
-  },
-
-  async getPicturesPath (context) {
-    const webCbk = () => null
-    return await invokeIRC(context, IpcChannels.GET_PICTURES_PATH, webCbk)
   },
 
   parseScreenshotCustomFileName: function({ rootState }, payload) {
-    return new Promise((resolve, reject) => {
-      const { pattern = rootState.settings.screenshotFilenamePattern, date, playerTime, videoId } = payload
-      const keywords = [
-        ['%Y', date.getFullYear()], // year 4 digits
-        ['%M', (date.getMonth() + 1).toString().padStart(2, '0')], // month 2 digits
-        ['%D', date.getDate().toString().padStart(2, '0')], // day 2 digits
-        ['%H', date.getHours().toString().padStart(2, '0')], // hour 2 digits
-        ['%N', date.getMinutes().toString().padStart(2, '0')], // minute 2 digits
-        ['%S', date.getSeconds().toString().padStart(2, '0')], // second 2 digits
-        ['%T', date.getMilliseconds().toString().padStart(3, '0')], // millisecond 3 digits
-        ['%s', parseInt(playerTime)], // video position second n digits
-        ['%t', (playerTime % 1).toString().slice(2, 5) || '000'], // video position millisecond 3 digits
-        ['%i', videoId] // video id
+    const { pattern = rootState.settings.screenshotFilenamePattern, date, playerTime, videoId } = payload
+    const keywords = [
+      ['%Y', date.getFullYear()], // year 4 digits
+      ['%M', (date.getMonth() + 1).toString().padStart(2, '0')], // month 2 digits
+      ['%D', date.getDate().toString().padStart(2, '0')], // day 2 digits
+      ['%H', date.getHours().toString().padStart(2, '0')], // hour 2 digits
+      ['%N', date.getMinutes().toString().padStart(2, '0')], // minute 2 digits
+      ['%S', date.getSeconds().toString().padStart(2, '0')], // second 2 digits
+      ['%T', date.getMilliseconds().toString().padStart(3, '0')], // millisecond 3 digits
+      ['%s', parseInt(playerTime)], // video position second n digits
+      ['%t', (playerTime % 1).toString().slice(2, 5) || '000'], // video position millisecond 3 digits
+      ['%i', videoId] // video id
+    ]
+
+    let parsedString = pattern
+    for (const [key, value] of keywords) {
+      parsedString = parsedString.replaceAll(key, value)
+    }
+
+    if (parsedString !== replaceFilenameForbiddenChars(parsedString)) {
+      throw new Error(i18n.t('Settings.Player Settings.Screenshot.Error.Forbidden Characters'))
+    }
+
+    if (!parsedString) {
+      throw new Error(i18n.t('Settings.Player Settings.Screenshot.Error.Empty File Name'))
+    }
+
+    return parsedString
+  },
+
+  showAddToPlaylistPromptForManyVideos ({ commit }, { videos: videoObjectArray, newPlaylistDefaultProperties }) {
+    let videoDataValid = true
+    if (!Array.isArray(videoObjectArray)) {
+      videoDataValid = false
+    }
+    let missingKeys = []
+
+    if (videoDataValid) {
+      const requiredVideoKeys = [
+        'videoId',
+        'title',
+        'author',
+        'authorId',
+        'lengthSeconds',
+
+        // `timeAdded` should be generated when videos are added
+        // Not when a prompt is displayed
+        // 'timeAdded',
+
+        // `playlistItemId` should be generated anyway
+        // 'playlistItemId',
+
+        // `type` should be added in action anyway
+        // 'type',
       ]
-
-      let parsedString = pattern
-      for (const [key, value] of keywords) {
-        parsedString = parsedString.replaceAll(key, value)
-      }
-
-      const platform = process.platform
-      if (platform === 'win32') {
-        // https://www.boost.org/doc/libs/1_78_0/libs/filesystem/doc/portability_guide.htm
-        // https://stackoverflow.com/questions/1976007/
-        const noForbiddenChars = ['<', '>', ':', '"', '/', '|', '?', '*'].every(char => {
-          return parsedString.indexOf(char) === -1
-        })
-        if (!noForbiddenChars) {
-          reject(new Error('Forbidden Characters')) // use message as translation key
+      // Using `every` to loop and `return false` to break
+      videoObjectArray.every((video) => {
+        const videoPropertyKeys = Object.keys(video)
+        const missingKeysHere = requiredVideoKeys.filter(x => !videoPropertyKeys.includes(x))
+        if (missingKeysHere.length > 0) {
+          videoDataValid = false
+          missingKeys = missingKeysHere
+          return false
         }
-      } else if (platform === 'darwin') {
-        // https://superuser.com/questions/204287/
-        if (parsedString.indexOf(':') !== -1) {
-          reject(new Error('Forbidden Characters'))
-        }
-      }
+        // Return true to continue loop
+        return true
+      })
+    }
 
-      const dirChar = platform === 'win32' ? '\\' : '/'
-      let filename
-      if (parsedString.indexOf(dirChar) !== -1) {
-        const lastIndex = parsedString.lastIndexOf(dirChar)
-        filename = parsedString.substring(lastIndex + 1)
-      } else {
-        filename = parsedString
-      }
+    if (!videoDataValid) {
+      // Print error and abort
+      const errorMsgText = 'Incorrect videos data passed when opening playlist prompt'
+      console.error(errorMsgText)
+      console.error({
+        videoObjectArray,
+        missingKeys,
+      })
+      throw new Error(errorMsgText)
+    }
 
-      if (!filename) {
-        reject(new Error('Empty File Name'))
-      }
+    commit('setShowAddToPlaylistPrompt', true)
+    commit('setToBeAddedToPlaylistVideoList', videoObjectArray)
+    if (newPlaylistDefaultProperties != null) {
+      commit('setNewPlaylistDefaultProperties', newPlaylistDefaultProperties)
+    }
+  },
 
-      resolve(parsedString)
-    })
+  hideAddToPlaylistPrompt ({ commit }) {
+    commit('setShowAddToPlaylistPrompt', false)
+    // The default value properties are only valid until prompt is closed
+    commit('resetNewPlaylistDefaultProperties')
+  },
+
+  showCreatePlaylistPrompt ({ commit }, data) {
+    commit('setShowCreatePlaylistPrompt', true)
+    commit('setNewPlaylistVideoObject', data)
+  },
+
+  hideCreatePlaylistPrompt ({ commit }) {
+    commit('setShowCreatePlaylistPrompt', false)
+  },
+
+  showKeyboardShortcutPrompt ({ commit }) {
+    commit('setIsKeyboardShortcutPromptShown', true)
+  },
+
+  hideKeyboardShortcutPrompt ({ commit }) {
+    commit('setIsKeyboardShortcutPromptShown', false)
+  },
+
+  showSearchFilters ({ commit }) {
+    commit('setShowSearchFilters', true)
+  },
+
+  hideSearchFilters ({ commit }) {
+    commit('setShowSearchFilters', false)
   },
 
   updateShowProgressBar ({ commit }, value) {
     commit('setShowProgressBar', value)
   },
 
-  getRandomColorClass () {
-    const randomInt = Math.floor(Math.random() * state.colorNames.length)
-    return 'main' + state.colorNames[randomInt]
-  },
+  async getRegionData ({ commit }, locale) {
+    const localePathExists = process.env.GEOLOCATION_NAMES.includes(locale)
 
-  getRandomColor () {
-    const randomInt = Math.floor(Math.random() * state.colorValues.length)
-    return state.colorValues[randomInt]
-  },
+    const url = createWebURL(`/static/geolocations/${localePathExists ? locale : 'en-US'}.json`)
 
-  getRegionData ({ commit }, payload) {
-    let fileData
-    /* eslint-disable-next-line */
-    const fileLocation = payload.isDev ? './static/geolocations/' : `${__dirname}/static/geolocations/`
-    if (fs.existsSync(`${fileLocation}${payload.locale}`)) {
-      fileData = fs.readFileSync(`${fileLocation}${payload.locale}/countries.json`)
-    } else {
-      fileData = fs.readFileSync(`${fileLocation}en-US/countries.json`)
-    }
-    const countries = JSON.parse(fileData).map((entry) => { return { id: entry.id, name: entry.name, code: entry.alpha2 } })
-    countries.sort((a, b) => { return a.id - b.id })
+    const countries = await (await fetch(url)).json()
 
     const regionNames = countries.map((entry) => { return entry.name })
     const regionValues = countries.map((entry) => { return entry.code })
@@ -436,115 +417,7 @@ const actions = {
     commit('setRegionValues', regionValues)
   },
 
-  calculateColorLuminance (_, colorValue) {
-    const cutHex = colorValue.substring(1, 7)
-    const colorValueR = parseInt(cutHex.substring(0, 2), 16)
-    const colorValueG = parseInt(cutHex.substring(2, 4), 16)
-    const colorValueB = parseInt(cutHex.substring(4, 6), 16)
-
-    const luminance = (0.299 * colorValueR + 0.587 * colorValueG + 0.114 * colorValueB) / 255
-
-    if (luminance > 0.5) {
-      return '#000000'
-    } else {
-      return '#FFFFFF'
-    }
-  },
-
-  calculatePublishedDate(_, publishedText) {
-    const date = new Date()
-
-    if (publishedText === 'Live') {
-      return publishedText
-    }
-
-    const textSplit = publishedText.split(' ')
-
-    if (textSplit[0].toLowerCase() === 'streamed') {
-      textSplit.shift()
-    }
-
-    const timeFrame = textSplit[1]
-    const timeAmount = parseInt(textSplit[0])
-    let timeSpan = null
-
-    if (timeFrame.indexOf('second') > -1) {
-      timeSpan = timeAmount * 1000
-    } else if (timeFrame.indexOf('minute') > -1) {
-      timeSpan = timeAmount * 60000
-    } else if (timeFrame.indexOf('hour') > -1) {
-      timeSpan = timeAmount * 3600000
-    } else if (timeFrame.indexOf('day') > -1) {
-      timeSpan = timeAmount * 86400000
-    } else if (timeFrame.indexOf('week') > -1) {
-      timeSpan = timeAmount * 604800000
-    } else if (timeFrame.indexOf('month') > -1) {
-      timeSpan = timeAmount * 2592000000
-    } else if (timeFrame.indexOf('year') > -1) {
-      timeSpan = timeAmount * 31556952000
-    }
-
-    return date.getTime() - timeSpan
-  },
-
-  getVideoParamsFromUrl (_, url) {
-    /** @type {URL} */
-    let urlObject
-    const paramsObject = { videoId: null, timestamp: null, playlistId: null }
-    try {
-      urlObject = new URL(url)
-    } catch (e) {
-      return paramsObject
-    }
-
-    function extractParams(videoId) {
-      paramsObject.videoId = videoId
-      paramsObject.timestamp = urlObject.searchParams.get('t')
-    }
-
-    const extractors = [
-      // anything with /watch?v=
-      function() {
-        if (urlObject.pathname === '/watch' && urlObject.searchParams.has('v')) {
-          extractParams(urlObject.searchParams.get('v'))
-          paramsObject.playlistId = urlObject.searchParams.get('list')
-          return paramsObject
-        }
-      },
-      // youtu.be
-      function() {
-        if (urlObject.host === 'youtu.be' && urlObject.pathname.match(/^\/[A-Za-z0-9_-]+$/)) {
-          extractParams(urlObject.pathname.slice(1))
-          return paramsObject
-        }
-      },
-      // youtube.com/embed
-      function() {
-        if (urlObject.pathname.match(/^\/embed\/[A-Za-z0-9_-]+$/)) {
-          extractParams(urlObject.pathname.replace('/embed/', ''))
-          return paramsObject
-        }
-      },
-      // youtube.com/shorts
-      function() {
-        if (urlObject.pathname.match(/^\/shorts\/[A-Za-z0-9_-]+$/)) {
-          extractParams(urlObject.pathname.replace('/shorts/', ''))
-          return paramsObject
-        }
-      },
-      // cloudtube
-      function() {
-        if (urlObject.host.match(/^cadence\.(gq|moe)$/) && urlObject.pathname.match(/^\/cloudtube\/video\/[A-Za-z0-9_-]+$/)) {
-          extractParams(urlObject.pathname.slice('/cloudtube/video/'.length))
-          return paramsObject
-        }
-      }
-    ]
-
-    return extractors.reduce((a, c) => a || c(), null) || paramsObject
-  },
-
-  getYoutubeUrlInfo ({ state }, urlStr) {
+  async getYoutubeUrlInfo({ rootState, state }, urlStr) {
     // Returns
     // - urlType [String] `video`, `playlist`
     //
@@ -571,7 +444,12 @@ const actions = {
     //
     // If `urlType` is "invalid_url"
     // Nothing else
-    const { videoId, timestamp, playlistId } = actions.getVideoParamsFromUrl(null, urlStr)
+
+    if (CHANNEL_HANDLE_REGEX.test(urlStr)) {
+      urlStr = `https://www.youtube.com/${urlStr}`
+    }
+
+    const { videoId, timestamp, playlistId } = getVideoParamsFromUrl(urlStr)
     if (videoId) {
       return {
         urlType: 'video',
@@ -592,13 +470,17 @@ const actions = {
     let urlType = 'unknown'
 
     const channelPattern =
-      /^\/(?:(c|channel|user)\/)?(?<channelId>[^/]+)(?:\/(join|featured|videos|playlists|about|community|channels))?\/?$/
+      /^\/(?:(?:channel|user|c)\/)?(?<channelId>[^/]+)(?:\/(?<tab>join|featured|videos|shorts|live|streams|podcasts|releases|playlists|about|community|channels))?\/?$/
 
+    const hashtagPattern = /^\/hashtag\/(?<tag>[^#&/?]+)$/
+
+    const postPattern = /^\/post\/(?<postId>.+)/
     const typePatterns = new Map([
-      ['playlist', /^\/playlist\/?$/],
-      ['search', /^\/results\/?$/],
-      ['hashtag', /^\/hashtag\/([^/?&#]+)$/],
-      ['channel', channelPattern]
+      ['playlist', /^(\/playlist\/?|\/embed(\/?videoseries)?)$/],
+      ['search', /^\/results|search\/?$/],
+      ['hashtag', hashtagPattern],
+      ['channel', channelPattern],
+      ['post', postPattern]
     ])
 
     for (const [type, pattern] of typePatterns) {
@@ -631,19 +513,28 @@ const actions = {
       }
 
       case 'search': {
-        if (!url.searchParams.has('search_query')) {
+        let searchQuery = null
+        if (url.searchParams.has('search_query')) {
+          // https://www.youtube.com/results?search_query={QUERY}
+          searchQuery = url.searchParams.get('search_query')
+          url.searchParams.delete('search_query')
+        }
+        if (url.searchParams.has('q')) {
+          // https://redirect.invidious.io/search?q={QUERY}
+          searchQuery = url.searchParams.get('q')
+          url.searchParams.delete('q')
+        }
+        if (searchQuery == null) {
           throw new Error('Search: "search_query" field not found')
         }
-
-        const searchQuery = url.searchParams.get('search_query')
-        url.searchParams.delete('search_query')
 
         const searchSettings = state.searchSettings
         const query = {
           sortBy: searchSettings.sortBy,
           time: searchSettings.time,
           type: searchSettings.type,
-          duration: searchSettings.duration
+          duration: searchSettings.duration,
+          features: searchSettings.features
         }
 
         for (const [param, value] of url.searchParams) {
@@ -658,8 +549,23 @@ const actions = {
       }
 
       case 'hashtag': {
+        const match = url.pathname.match(hashtagPattern)
+        const hashtag = match.groups.tag
+
         return {
-          urlType: 'hashtag'
+          urlType: 'hashtag',
+          hashtag
+        }
+      }
+
+      case 'post': {
+        const match = url.pathname.match(postPattern)
+        const postId = match.groups.postId
+        const query = { authorId: url.searchParams.get('ucid') }
+        return {
+          urlType: 'post',
+          postId,
+          query
         }
       }
       /*
@@ -690,29 +596,61 @@ const actions = {
 
       */
       case 'channel': {
-        const channelId = url.pathname.match(channelPattern).groups.channelId
+        const match = url.pathname.match(channelPattern)
+        const channelId = match.groups.channelId
         if (!channelId) {
           throw new Error('Channel: could not extract id')
         }
 
         let subPath = null
-        switch (url.pathname.split('/').filter(i => i)[2]) {
+        switch (match.groups.tab) {
+          case 'shorts':
+            subPath = 'shorts'
+            break
+          case 'live':
+          case 'streams':
+            subPath = 'live'
+            break
           case 'playlists':
             subPath = 'playlists'
+            break
+          case 'podcasts':
+            subPath = 'podcasts'
+            break
+          case 'releases':
+            subPath = 'releases'
             break
           case 'channels':
           case 'about':
             subPath = 'about'
             break
           case 'community':
-          default:
+            if (url.searchParams.has('lb')) {
+              // if it has the lb search parameter then it is linking a specific community post
+              const postId = url.searchParams.get('lb')
+              const query = { authorId: channelId }
+              return {
+                urlType: 'post',
+                postId,
+                query
+              }
+            }
+            subPath = 'community'
+            break
+          case 'videos':
             subPath = 'videos'
+            break
+          default:
+            subPath = rootState.settings.backendPreference === 'local' && !rootState.settings.hideChannelHome ? 'home' : 'videos'
             break
         }
         return {
           urlType: 'channel',
           channelId,
-          subPath
+          subPath,
+          // The original URL could be from Invidious.
+          // We need to make sure it starts with youtube.com, so that YouTube's resolve endpoint can recognise it
+          url: `https://www.youtube.com${url.pathname}`
         }
       }
 
@@ -725,190 +663,17 @@ const actions = {
     }
   },
 
-  padNumberWithLeadingZeros(_, payload) {
-    let numberString = payload.number.toString()
-    while (numberString.length < payload.length) {
-      numberString = '0' + numberString
-    }
-    return numberString
-  },
-
-  async buildVTTFileLocally ({ dispatch }, Storyboard) {
-    let vttString = 'WEBVTT\n\n'
-    // how many images are in one image
-    const numberOfSubImagesPerImage = Storyboard.sWidth * Storyboard.sHeight
-    // the number of storyboard images
-    const numberOfImages = Math.ceil(Storyboard.count / numberOfSubImagesPerImage)
-    const intervalInSeconds = Storyboard.interval / 1000
-    let currentUrl = Storyboard.url
-    let startHours = 0
-    let startMinutes = 0
-    let startSeconds = 0
-    let endHours = 0
-    let endMinutes = 0
-    let endSeconds = intervalInSeconds
-    for (let i = 0; i < numberOfImages; i++) {
-      let xCoord = 0
-      let yCoord = 0
-      for (let j = 0; j < numberOfSubImagesPerImage; j++) {
-        // add the timestamp information
-        const paddedStartHours = await dispatch('padNumberWithLeadingZeros', {
-          number: startHours,
-          length: 2
-        })
-        const paddedStartMinutes = await dispatch('padNumberWithLeadingZeros', {
-          number: startMinutes,
-          length: 2
-        })
-        const paddedStartSeconds = await dispatch('padNumberWithLeadingZeros', {
-          number: startSeconds,
-          length: 2
-        })
-        const paddedEndHours = await dispatch('padNumberWithLeadingZeros', {
-          number: endHours,
-          length: 2
-        })
-        const paddedEndMinutes = await dispatch('padNumberWithLeadingZeros', {
-          number: endMinutes,
-          length: 2
-        })
-        const paddedEndSeconds = await dispatch('padNumberWithLeadingZeros', {
-          number: endSeconds,
-          length: 2
-        })
-        vttString += `${paddedStartHours}:${paddedStartMinutes}:${paddedStartSeconds}.000 --> ${paddedEndHours}:${paddedEndMinutes}:${paddedEndSeconds}.000\n`
-        // add the current image url as well as the x, y, width, height information
-        vttString += currentUrl + `#xywh=${xCoord},${yCoord},${Storyboard.width},${Storyboard.height}\n\n`
-        // update the variables
-        startHours = endHours
-        startMinutes = endMinutes
-        startSeconds = endSeconds
-        endSeconds += intervalInSeconds
-        if (endSeconds >= 60) {
-          endSeconds -= 60
-          endMinutes += 1
-        }
-        if (endMinutes >= 60) {
-          endMinutes -= 60
-          endHours += 1
-        }
-        // x coordinate can only be smaller than the width of one subimage * the number of subimages per row
-        xCoord = (xCoord + Storyboard.width) % (Storyboard.width * Storyboard.sWidth)
-        // only if the x coordinate is , so in a new row, we have to update the y coordinate
-        if (xCoord === 0) {
-          yCoord += Storyboard.height
-        }
-      }
-      // make sure that there is no value like M0 or M1 in the parameters that gets replaced
-      currentUrl = currentUrl.replace('M' + i.toString() + '.jpg', 'M' + (i + 1).toString() + '.jpg')
-    }
-    return vttString
-  },
-
-  toLocalePublicationString ({ dispatch }, payload) {
-    if (payload.isLive) {
-      return '0' + payload.liveStreamString
-    } else if (payload.isUpcoming || payload.publishText === null) {
-      // the check for null is currently just an inferring of knowledge, because there is no other possibility left
-      return `${payload.upcomingString}: ${payload.publishText}`
-    } else if (payload.isRSS) {
-      return payload.publishText
-    }
-    const strings = payload.publishText.split(' ')
-    // filters out the streamed x hours ago and removes the streamed in order to keep the rest of the code working
-    if (strings[0].toLowerCase() === 'streamed') {
-      strings.shift()
-    }
-    const singular = (strings[0] === '1')
-    let publicationString = payload.templateString.replace('$', strings[0])
-    switch (strings[1].substring(0, 2)) {
-      case 'se':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Second)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Seconds)
-        }
-        break
-      case 'mi':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Minute)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Minutes)
-        }
-        break
-      case 'ho':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Hour)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Hours)
-        }
-        break
-      case 'da':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Day)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Days)
-        }
-        break
-      case 'we':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Week)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Weeks)
-        }
-        break
-      case 'mo':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Month)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Months)
-        }
-        break
-      case 'ye':
-        if (singular) {
-          publicationString = publicationString.replace('%', payload.timeStrings.Year)
-        } else {
-          publicationString = publicationString.replace('%', payload.timeStrings.Years)
-        }
-        break
-    }
-    return publicationString
-  },
-
   clearSessionSearchHistory ({ commit }) {
     commit('setSessionSearchHistory', [])
   },
 
-  showToast (_, payload) {
-    FtToastEvents.$emit('toast-open', payload.message, payload.action, payload.time)
-  },
-
-  showExternalPlayerUnsupportedActionToast: function ({ dispatch }, payload) {
-    if (!payload.ignoreWarnings) {
-      const toastMessage = payload.template
-        .replace('$', payload.externalPlayer)
-        .replace('%', payload.action)
-      dispatch('showToast', {
-        message: toastMessage
-      })
-    }
-  },
-
-  getExternalPlayerCmdArgumentsData ({ commit }, payload) {
-    const fileName = 'external-player-map.json'
-    let fileData
-    /* eslint-disable-next-line */
-    const fileLocation = payload.isDev ? './static/' : `${__dirname}/static/`
-
-    if (fs.existsSync(`${fileLocation}${fileName}`)) {
-      fileData = fs.readFileSync(`${fileLocation}${fileName}`)
-    } else {
-      fileData = '[{"name":"None","value":"","cmdArguments":null}]'
-    }
-
-    const externalPlayerMap = JSON.parse(fileData).map((entry) => {
-      return { name: entry.name, value: entry.value, cmdArguments: entry.cmdArguments }
-    })
+  async getExternalPlayerCmdArgumentsData ({ commit }) {
+    const url = createWebURL('/static/external-player-map.json')
+    const externalPlayerMap = await (await fetch(url)).json()
+    // Sort external players alphabetically & case-insensitive, keep default entry at the top
+    const playerNone = externalPlayerMap.shift()
+    externalPlayerMap.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    externalPlayerMap.unshift(playerNone)
 
     const externalPlayerNames = externalPlayerMap.map((entry) => { return entry.name })
     const externalPlayerValues = externalPlayerMap.map((entry) => { return entry.value })
@@ -922,7 +687,7 @@ const actions = {
     commit('setExternalPlayerCmdArguments', externalPlayerCmdArguments)
   },
 
-  openInExternalPlayer ({ dispatch, state, rootState }, payload) {
+  openInExternalPlayer ({ state, rootState }, payload) {
     const args = []
     const externalPlayer = rootState.settings.externalPlayer
     const cmdArgs = state.externalPlayerCmdArguments[externalPlayer]
@@ -930,139 +695,122 @@ const actions = {
       ? rootState.settings.externalPlayerExecutable
       : cmdArgs.defaultExecutable
     const ignoreWarnings = rootState.settings.externalPlayerIgnoreWarnings
+    const ignoreDefaultArgs = rootState.settings.externalPlayerIgnoreDefaultArgs
     const customArgs = rootState.settings.externalPlayerCustomArgs
 
-    // Append custom user-defined arguments,
-    // or use the default ones specified for the external player.
-    if (typeof customArgs === 'string' && customArgs !== '') {
-      const custom = customArgs.split(';')
-      args.push(...custom)
-    } else if (typeof cmdArgs.defaultCustomArguments === 'string' && cmdArgs.defaultCustomArguments !== '') {
-      const defaultCustomArguments = cmdArgs.defaultCustomArguments.split(';')
-      args.push(...defaultCustomArguments)
-    }
-
-    if (payload.watchProgress > 0 && payload.watchProgress < payload.videoLength - 10) {
-      if (typeof cmdArgs.startOffset === 'string') {
-        args.push(`${cmdArgs.startOffset}${payload.watchProgress}`)
-      } else {
-        dispatch('showExternalPlayerUnsupportedActionToast', {
-          ignoreWarnings,
-          externalPlayer,
-          template: payload.strings.UnsupportedActionTemplate,
-          action: payload.strings['Unsupported Actions']['starting video at offset']
-        })
+    if (ignoreDefaultArgs) {
+      if (typeof customArgs === 'string' && customArgs !== '[]') {
+        const custom = JSON.parse(customArgs)
+        args.push(...custom)
       }
-    }
-
-    if (payload.playbackRate !== null) {
-      if (typeof cmdArgs.playbackRate === 'string') {
-        args.push(`${cmdArgs.playbackRate}${payload.playbackRate}`)
-      } else {
-        dispatch('showExternalPlayerUnsupportedActionToast', {
-          ignoreWarnings,
-          externalPlayer,
-          template: payload.strings.UnsupportedActionTemplate,
-          action: payload.strings['Unsupported Actions']['setting a playback rate']
-        })
-      }
-    }
-
-    // Check whether the video is in a playlist
-    if (typeof cmdArgs.playlistUrl === 'string' && payload.playlistId !== null && payload.playlistId !== '') {
-      if (payload.playlistIndex !== null) {
-        if (typeof cmdArgs.playlistIndex === 'string') {
-          args.push(`${cmdArgs.playlistIndex}${payload.playlistIndex}`)
-        } else {
-          dispatch('showExternalPlayerUnsupportedActionToast', {
-            ignoreWarnings,
-            externalPlayer,
-            template: payload.strings.UnsupportedActionTemplate,
-            action: payload.strings['Unsupported Actions']['opening specific video in a playlist (falling back to opening the video)']
-          })
-        }
-      }
-
-      if (payload.playlistReverse) {
-        if (typeof cmdArgs.playlistReverse === 'string') {
-          args.push(cmdArgs.playlistReverse)
-        } else {
-          dispatch('showExternalPlayerUnsupportedActionToast', {
-            ignoreWarnings,
-            externalPlayer,
-            template: payload.strings.UnsupportedActionTemplate,
-            action: payload.strings['Unsupported Actions']['reversing playlists']
-          })
-        }
-      }
-
-      if (payload.playlistShuffle) {
-        if (typeof cmdArgs.playlistShuffle === 'string') {
-          args.push(cmdArgs.playlistShuffle)
-        } else {
-          dispatch('showExternalPlayerUnsupportedActionToast', {
-            ignoreWarnings,
-            externalPlayer,
-            template: payload.strings.UnsupportedActionTemplate,
-            action: payload.strings['Unsupported Actions']['shuffling playlists']
-          })
-        }
-      }
-
-      if (payload.playlistLoop) {
-        if (typeof cmdArgs.playlistLoop === 'string') {
-          args.push(cmdArgs.playlistLoop)
-        } else {
-          dispatch('showExternalPlayerUnsupportedActionToast', {
-            ignoreWarnings,
-            externalPlayer,
-            template: payload.strings.UnsupportedActionTemplate,
-            action: payload.strings['Unsupported Actions']['looping playlists']
-          })
-        }
-      }
-      if (cmdArgs.supportsYtdlProtocol) {
-        args.push(`${cmdArgs.playlistUrl}ytdl://${payload.playlistId}`)
-      } else {
-        args.push(`${cmdArgs.playlistUrl}https://youtube.com/playlist?list=${payload.playlistId}`)
-      }
+      if (payload.videoId != null) args.push(`${cmdArgs.videoUrl}https://www.youtube.com/watch?v=${payload.videoId}`)
     } else {
-      if (payload.playlistId !== null && payload.playlistId !== '') {
-        dispatch('showExternalPlayerUnsupportedActionToast', {
-          ignoreWarnings,
-          externalPlayer,
-          template: payload.strings.UnsupportedActionTemplate,
-          action: payload.strings['Unsupported Actions']['opening playlists']
-        })
+      // Append custom user-defined arguments,
+      // or use the default ones specified for the external player.
+      if (typeof customArgs === 'string' && customArgs !== '[]') {
+        const custom = JSON.parse(customArgs)
+        args.push(...custom)
+      } else if (Array.isArray(cmdArgs.defaultCustomArguments)) {
+        args.push(...cmdArgs.defaultCustomArguments)
       }
-      if (payload.videoId !== null) {
-        if (cmdArgs.supportsYtdlProtocol) {
-          args.push(`${cmdArgs.videoUrl}ytdl://${payload.videoId}`)
+
+      if (payload.watchProgress > 0 && payload.watchProgress < payload.videoLength - 10) {
+        if (typeof cmdArgs.startOffset === 'string') {
+          if (cmdArgs.defaultExecutable.startsWith('mpc')) {
+            // For mpc-hc and mpc-be, which require startOffset to be in milliseconds
+            args.push(cmdArgs.startOffset, (Math.trunc(payload.watchProgress) * 1000))
+          } else if (cmdArgs.startOffset.endsWith('=')) {
+            // For players using `=` in arguments
+            // e.g. vlc --start-time=xxxxx
+            args.push(`${cmdArgs.startOffset}${payload.watchProgress}`)
+          } else {
+            // For players using space in arguments
+            // e.g. smplayer -start xxxxx
+            args.push(cmdArgs.startOffset, Math.trunc(payload.watchProgress))
+          }
+        } else if (!ignoreWarnings) {
+          showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.starting video at offset'))
+        }
+      }
+
+      if (payload.playbackRate != null) {
+        if (typeof cmdArgs.playbackRate === 'string') {
+          args.push(`${cmdArgs.playbackRate}${payload.playbackRate}`)
+        } else if (!ignoreWarnings) {
+          showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.setting a playback rate'))
+        }
+      }
+
+      // Check whether the video is in a playlist
+      if (typeof cmdArgs.playlistUrl === 'string' && payload.playlistId != null && payload.playlistId !== '') {
+        if (payload.playlistIndex != null) {
+          if (typeof cmdArgs.playlistIndex === 'string') {
+            args.push(`${cmdArgs.playlistIndex}${payload.playlistIndex}`)
+          } else if (!ignoreWarnings) {
+            showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.opening specific video in a playlist (falling back to opening the video)'))
+          }
+        }
+
+        if (payload.playlistReverse) {
+          if (typeof cmdArgs.playlistReverse === 'string') {
+            args.push(cmdArgs.playlistReverse)
+          } else if (!ignoreWarnings) {
+            showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.reversing playlists'))
+          }
+        }
+
+        if (payload.playlistShuffle) {
+          if (typeof cmdArgs.playlistShuffle === 'string') {
+            args.push(cmdArgs.playlistShuffle)
+          } else if (!ignoreWarnings) {
+            showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.shuffling playlists'))
+          }
+        }
+
+        if (payload.playlistLoop) {
+          if (typeof cmdArgs.playlistLoop === 'string') {
+            args.push(cmdArgs.playlistLoop)
+          } else if (!ignoreWarnings) {
+            showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.looping playlists'))
+          }
+        }
+
+        // If the player supports opening playlists but not indexes, send only the video URL if an index is specified
+        if (cmdArgs.playlistIndex == null && payload.playlistIndex != null && payload.playlistIndex !== '') {
+          args.push(`${cmdArgs.videoUrl}https://youtube.com/watch?v=${payload.videoId}`)
         } else {
+          args.push(`${cmdArgs.playlistUrl}https://youtube.com/playlist?list=${payload.playlistId}`)
+        }
+      } else {
+        if (payload.playlistId != null && payload.playlistId !== '' && !ignoreWarnings) {
+          showExternalPlayerUnsupportedActionToast(externalPlayer, i18n.t('Video.External Player.Unsupported Actions.opening playlists'))
+        }
+        if (payload.videoId != null) {
           args.push(`${cmdArgs.videoUrl}https://www.youtube.com/watch?v=${payload.videoId}`)
         }
       }
     }
 
-    const openingToast = payload.strings.OpeningTemplate
-      .replace('$', payload.playlistId === null || payload.playlistId === ''
-        ? payload.strings.video
-        : payload.strings.playlist)
-      .replace('%', externalPlayer)
-    dispatch('showToast', {
-      message: openingToast
-    })
+    const videoOrPlaylist = payload.playlistId != null && payload.playlistId !== ''
+      ? i18n.t('Video.External Player.playlist')
+      : i18n.t('Video.External Player.video')
 
-    console.log(executable, args)
+    showToast(i18n.t('Video.External Player.OpeningTemplate', { videoOrPlaylist, externalPlayer }))
 
-    const { ipcRenderer } = require('electron')
-    ipcRenderer.send(IpcChannels.OPEN_IN_EXTERNAL_PLAYER, { executable, args })
-  }
+    if (process.env.IS_ELECTRON) {
+      const { ipcRenderer } = require('electron')
+      ipcRenderer.send(IpcChannels.OPEN_IN_EXTERNAL_PLAYER, { executable, args })
+    }
+  },
 }
 
 const mutations = {
   toggleSideNav (state) {
     state.isSideNavOpen = !state.isSideNavOpen
+  },
+
+  setOutlinesHidden(state, value) {
+    state.outlinesHidden = value
   },
 
   setShowProgressBar (state, value) {
@@ -1077,17 +825,76 @@ const mutations = {
     state.sessionSearchHistory = history
   },
 
+  setDeArrowCache (state, cache) {
+    state.deArrowCache = cache
+  },
+
+  addVideoToDeArrowCache (state, payload) {
+    const sameVideo = state.deArrowCache[payload.videoId]
+
+    if (!sameVideo) {
+      // setting properties directly doesn't trigger watchers in Vue 2,
+      // so we need to use Vue's set function
+      vueSet(state.deArrowCache, payload.videoId, payload)
+    }
+  },
+
+  addThumbnailToDeArrowCache (state, payload) {
+    vueSet(state.deArrowCache, payload.videoId, payload)
+  },
+
+  removeFromSessionSearchHistory (state, query) {
+    state.sessionSearchHistory = state.sessionSearchHistory.filter((search) => search.query !== query)
+  },
+
   addToSessionSearchHistory (state, payload) {
     const sameSearch = state.sessionSearchHistory.findIndex((search) => {
-      return search.query === payload.query && IsEqual(payload.searchSettings, search.searchSettings)
+      return search.query === payload.query && searchFiltersMatch(payload.searchSettings, search.searchSettings)
     })
 
     if (sameSearch !== -1) {
       state.sessionSearchHistory[sameSearch].data = payload.data
-      state.sessionSearchHistory[sameSearch].nextPageRef = payload.nextPageRef
+      if (payload.nextPageRef) {
+        // Local API
+        state.sessionSearchHistory[sameSearch].nextPageRef = payload.nextPageRef
+      } else if (payload.searchPage) {
+        // Invidious API
+        state.sessionSearchHistory[sameSearch].searchPage = payload.searchPage
+      }
     } else {
       state.sessionSearchHistory.push(payload)
     }
+  },
+
+  setShowAddToPlaylistPrompt (state, payload) {
+    state.showAddToPlaylistPrompt = payload
+  },
+
+  setShowCreatePlaylistPrompt (state, payload) {
+    state.showCreatePlaylistPrompt = payload
+  },
+
+  setIsKeyboardShortcutPromptShown (state, payload) {
+    state.isKeyboardShortcutPromptShown = payload
+  },
+
+  setShowSearchFilters (state, payload) {
+    state.showSearchFilters = payload
+  },
+
+  setToBeAddedToPlaylistVideoList (state, payload) {
+    state.toBeAddedToPlaylistVideoList = payload
+  },
+
+  setNewPlaylistDefaultProperties (state, payload) {
+    state.newPlaylistDefaultProperties = payload
+  },
+  resetNewPlaylistDefaultProperties (state) {
+    state.newPlaylistDefaultProperties = {}
+  },
+
+  setNewPlaylistVideoObject (state, payload) {
+    state.newPlaylistVideoObject = payload
   },
 
   setPopularCache (state, value) {
@@ -1096,6 +903,31 @@ const mutations = {
 
   setTrendingCache (state, { value, page }) {
     state.trendingCache[page] = value
+  },
+
+  setLastTrendingRefreshTimestamp (state, timestamp) {
+    state.lastTrendingRefreshTimestamp = timestamp
+  },
+
+  setLastPopularRefreshTimestamp (state, timestamp) {
+    state.lastPopularRefreshTimestamp = timestamp
+  },
+
+  clearTrendingCache(state) {
+    state.trendingCache = {
+      default: null,
+      music: null,
+      gaming: null,
+      movies: null
+    }
+  },
+
+  setCachedPlaylist(state, value) {
+    state.cachedPlaylist = value
+  },
+
+  setSearchFilterValueChanged (state, value) {
+    state.searchFilterValueChanged = value
   },
 
   setSearchSortBy (state, value) {
@@ -1112,6 +944,10 @@ const mutations = {
 
   setSearchDuration (state, value) {
     state.searchSettings.duration = value
+  },
+
+  setSearchFeatures (state, value) {
+    state.searchSettings.features = value
   },
 
   setRegionNames (state, value) {
@@ -1136,6 +972,24 @@ const mutations = {
 
   setExternalPlayerCmdArguments (state, value) {
     state.externalPlayerCmdArguments = value
+  },
+
+  // Use this to set the app title / document.title
+  setAppTitle (state, value) {
+    state.appTitle = value
+  },
+
+  setSubscriptionForVideosFirstAutoFetchRun (state) {
+    state.subscriptionFirstAutoFetchRunData.videos = true
+  },
+  setSubscriptionForLiveStreamsFirstAutoFetchRun (state) {
+    state.subscriptionFirstAutoFetchRunData.liveStreams = true
+  },
+  setSubscriptionForShortsFirstAutoFetchRun (state) {
+    state.subscriptionFirstAutoFetchRunData.shorts = true
+  },
+  setSubscriptionForCommunityPostsFirstAutoFetchRun (state) {
+    state.subscriptionFirstAutoFetchRunData.communityPosts = true
   }
 }
 

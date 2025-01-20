@@ -1,7 +1,8 @@
-import Vue from 'vue'
-import { uniqueId } from 'lodash'
+import { defineComponent } from 'vue'
 
-export default Vue.extend({
+let idCounter = 0
+
+export default defineComponent({
   name: 'FtTooltip',
   props: {
     position: {
@@ -12,10 +13,14 @@ export default Vue.extend({
     tooltip: {
       type: String,
       required: true
-    }
+    },
+    allowNewlines: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
-    const id = uniqueId('ft-tooltip-')
+    const id = `ft-tooltip-${++idCounter}`
 
     return {
       id

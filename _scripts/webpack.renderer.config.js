@@ -1,19 +1,28 @@
 const path = require('path')
+const { readFileSync, readdirSync } = require('fs')
 const webpack = require('webpack')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
-const CopyWebpackPlugin = require('copy-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
-
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin')
+const ProcessLocalesPlugin = require('./ProcessLocalesPlugin')
+const CopyWebpackPlugin = require('copy-webpack-plugin')
 const {
-  dependencies,
-  devDependencies,
-  productName,
-} = require('../package.json')
+  SHAKA_LOCALE_MAPPINGS,
+  SHAKA_LOCALES_PREBUNDLED,
+  SHAKA_LOCALES_TO_BE_BUNDLED
+} = require('./getShakaLocales')
 
-const externals = Object.keys(dependencies).concat(Object.keys(devDependencies))
 const isDevMode = process.env.NODE_ENV === 'development'
-const whiteListedModules = ['vue']
+
+const { version: swiperVersion } = JSON.parse(readFileSync(path.join(__dirname, '../node_modules/swiper/package.json')))
+
+const processLocalesPlugin = new ProcessLocalesPlugin({
+  compress: !isDevMode,
+  hotReload: isDevMode,
+  inputDir: path.join(__dirname, '../static/locales'),
+  outputDir: 'static/locales',
+})
 
 const config = {
   name: 'renderer',
@@ -33,40 +42,38 @@ const config = {
     path: path.join(__dirname, '../dist'),
     filename: '[name].js',
   },
-  externals: externals.filter(d => !whiteListedModules.includes(d)),
   module: {
     rules: [
       {
-        test: /\.(j|t)s$/,
+        test: /\.js$/,
         use: 'babel-loader',
         exclude: /node_modules/,
       },
       {
-        test: /\.node$/,
-        loader: 'node-loader',
-      },
-      {
         test: /\.vue$/,
         loader: 'vue-loader',
+        options: {
+          compilerOptions: {
+            whitespace: 'condense',
+          }
+        }
       },
       {
-        test: /\.s(c|a)ss$/,
+        test: /\.scss$/,
         use: [
           {
             loader: MiniCssExtractPlugin.loader,
-            options: {},
           },
           {
             loader: 'css-loader',
+            options: {
+              esModule: false
+            }
           },
           {
             loader: 'sass-loader',
             options: {
-              // eslint-disable-next-line
-              implementation: require('sass'),
-              sassOptions: {
-                indentedSyntax: true
-              }
+              implementation: require('sass')
             }
           },
         ],
@@ -75,127 +82,115 @@ const config = {
         test: /\.css$/,
         use: [
           {
-            loader: MiniCssExtractPlugin.loader,
-            options: {},
+            loader: MiniCssExtractPlugin.loader
           },
-          'css-loader',
+          {
+            loader: 'css-loader',
+            options: {
+              esModule: false
+            }
+          }
         ],
       },
       {
         test: /\.(png|jpe?g|gif|tif?f|bmp|webp|svg)(\?.*)?$/,
-        use: {
-          loader: 'url-loader',
-          options: {
-            esModule: false,
-            limit: 10000,
-            name: 'imgs/[name]--[folder].[ext]',
-          },
-        },
+        type: 'asset/resource',
+        generator: {
+          filename: 'imgs/[name][ext]'
+        }
       },
       {
         test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
-        use: {
-          loader: 'url-loader',
-          options: {
-            esModule: false,
-            limit: 10000,
-            name: 'fonts/[name]--[folder].[ext]',
-          },
-        },
+        type: 'asset/resource',
+        generator: {
+          filename: 'fonts/[name][ext]'
+        }
       },
     ],
   },
+  // webpack defaults to only optimising the production builds, so having this here is fine
+  optimization: {
+    minimizer: [
+      '...', // extend webpack's list instead of overwriting it
+      new CssMinimizerPlugin()
+    ]
+  },
   node: {
-    __dirname: isDevMode,
-    __filename: isDevMode,
-    global: isDevMode,
+    __dirname: false,
+    __filename: false
   },
   plugins: [
-    // new WriteFilePlugin(),
+    processLocalesPlugin,
+    new webpack.DefinePlugin({
+      'process.env.IS_ELECTRON': true,
+      'process.env.IS_ELECTRON_MAIN': false,
+      'process.env.SUPPORTS_LOCAL_API': true,
+      'process.env.LOCALE_NAMES': JSON.stringify(processLocalesPlugin.localeNames),
+      'process.env.GEOLOCATION_NAMES': JSON.stringify(readdirSync(path.join(__dirname, '..', 'static', 'geolocations')).map(filename => filename.replace('.json', ''))),
+      'process.env.SWIPER_VERSION': `'${swiperVersion}'`,
+      'process.env.SHAKA_LOCALE_MAPPINGS': JSON.stringify(SHAKA_LOCALE_MAPPINGS),
+      'process.env.SHAKA_LOCALES_PREBUNDLED': JSON.stringify(SHAKA_LOCALES_PREBUNDLED)
+    }),
     new HtmlWebpackPlugin({
       excludeChunks: ['processTaskWorker'],
       filename: 'index.html',
-      template: path.resolve(__dirname, '../src/index.ejs'),
-      nodeModules: isDevMode
-        ? path.resolve(__dirname, '../node_modules')
-        : false,
+      template: path.resolve(__dirname, '../src/index.ejs')
     }),
     new VueLoaderPlugin(),
-    new webpack.DefinePlugin({
-      'process.env.PRODUCT_NAME': JSON.stringify(productName),
-    }),
     new MiniCssExtractPlugin({
       filename: isDevMode ? '[name].css' : '[name].[contenthash].css',
       chunkFilename: isDevMode ? '[id].css' : '[id].[contenthash].css',
     }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.join(__dirname, '../node_modules/swiper/modules/{a11y,navigation,pagination}-element.css').replaceAll('\\', '/'),
+          to: `swiper-${swiperVersion}.css`,
+          context: path.join(__dirname, '../node_modules/swiper/modules'),
+          transformAll: (assets) => {
+            return Buffer.concat(assets.map(asset => asset.data))
+          }
+        },
+        // Don't need to copy them in dev mode,
+        // as we configure WebpackDevServer to serve them
+        ...(isDevMode
+          ? []
+          : [
+              {
+                from: path.join(__dirname, '../node_modules/shaka-player/ui/locales', `{${SHAKA_LOCALES_TO_BE_BUNDLED.join(',')}}.json`).replaceAll('\\', '/'),
+                to: path.join(__dirname, '../dist/static/shaka-player-locales'),
+                context: path.join(__dirname, '../node_modules/shaka-player/ui/locales'),
+                transform: {
+                  transformer: (input) => {
+                    return JSON.stringify(JSON.parse(input.toString('utf-8')))
+                  }
+                }
+              }
+            ])
+      ]
+    })
   ],
   resolve: {
     alias: {
-      vue$: 'vue/dist/vue.common.js',
-      '@': path.join(__dirname, '../src/'),
-      src: path.join(__dirname, '../src/'),
-      icons: path.join(__dirname, '../_icons/'),
-      images: path.join(__dirname, '../src/renderer/assets/img/'),
-      static: path.join(__dirname, '../static/'),
+      vue$: 'vue/dist/vue.runtime.esm.js',
+      'portal-vue$': 'portal-vue/dist/portal-vue.esm.js',
+
+      DB_HANDLERS_ELECTRON_RENDERER_OR_WEB$: path.resolve(__dirname, '../src/datastores/handlers/electron.js'),
+
+      'youtubei.js$': 'youtubei.js/web',
+
+      // change to "shaka-player.ui.debug.js" to get debug logs (update jsconfig to get updated types)
+      'shaka-player$': 'shaka-player/dist/shaka-player.ui.js',
     },
-    extensions: ['.js', '.vue', '.json'],
+    extensions: ['.js', '.vue']
   },
   target: 'electron-renderer',
 }
 
-/**
- * Adjust rendererConfig for production settings
- */
 if (isDevMode) {
-  // any dev only config
-  config.plugins.push(
-    new webpack.DefinePlugin({
-      __static: `"${path.join(__dirname, '../static').replace(/\\/g, '\\\\')}"`,
-    })
-  )
-} else {
-  config.plugins.push(
-    new CopyWebpackPlugin({
-        patterns: [
-          {
-            from: path.join(__dirname, '../static/pwabuilder-sw.js'),
-            to: path.join(__dirname, '../dist/web/pwabuilder-sw.js'),
-          },
-          {
-            from: path.join(__dirname, '../static'),
-            to: path.join(__dirname, '../dist/web/static'),
-            globOptions: {
-              ignore: ['.*', 'pwabuilder-sw.js'],
-            },
-          },
-          {
-            from: path.join(__dirname, '../static'),
-            to: path.join(__dirname, '../dist/static'),
-            globOptions: {
-              ignore: ['.*', 'pwabuilder-sw.js'],
-            },
-          },
-          {
-            from: path.join(__dirname, '../_icons'),
-            to: path.join(__dirname, '../dist/web/_icons'),
-            globOptions: {
-              ignore: ['.*'],
-            },
-          },
-          {
-            from: path.join(__dirname, '../src/renderer/assets/img'),
-            to: path.join(__dirname, '../dist/web/images'),
-            globOptions: {
-              ignore: ['.*'],
-            },
-          },
-        ]
-      }
-    ),
-    new webpack.LoaderOptionsPlugin({
-      minimize: true,
-    })
-  )
+  // hack to pass it through to the dev-runner.js script
+  // gets removed there before the config object is passed to webpack
+  config.SHAKA_LOCALES_TO_BE_BUNDLED = SHAKA_LOCALES_TO_BE_BUNDLED
 }
 
 module.exports = config

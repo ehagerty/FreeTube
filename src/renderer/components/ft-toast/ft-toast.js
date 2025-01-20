@@ -1,7 +1,9 @@
-import Vue from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import FtToastEvents from './ft-toast-events.js'
 
-export default Vue.extend({
+let id = 0
+
+export default defineComponent({
   name: 'FtToast',
   data: function () {
     return {
@@ -9,13 +11,15 @@ export default Vue.extend({
     }
   },
   mounted: function () {
-    FtToastEvents.$on('toast-open', this.open)
+    FtToastEvents.addEventListener('toast-open', this.open)
   },
   beforeDestroy: function () {
-    FtToastEvents.$off('toast-open', this.open)
+    FtToastEvents.removeEventListener('toast-open', this.open)
   },
   methods: {
-    performAction: function (index) {
+    performAction: function (id) {
+      const index = this.toasts.findIndex(toast => id === toast.id)
+
       this.toasts[index].action()
       this.remove(index)
     },
@@ -25,10 +29,16 @@ export default Vue.extend({
 
       toast.isOpen = false
     },
-    open: function (message, action, time) {
-      const toast = { message: message, action: action || (() => { }), isOpen: false, timeout: null }
+    open: function ({ detail: { message, time, action } }) {
+      const toast = {
+        message: message,
+        action: action || (() => { }),
+        isOpen: false,
+        timeout: null,
+        id: id++
+      }
       toast.timeout = setTimeout(this.close, time || 3000, toast)
-      setImmediate(() => { toast.isOpen = true })
+      nextTick(() => { toast.isOpen = true })
       if (this.toasts.length > 4) {
         this.remove(0)
       }

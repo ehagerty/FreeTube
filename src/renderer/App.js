@@ -1,24 +1,26 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions, mapMutations } from 'vuex'
-import { ObserveVisibility } from 'vue-observe-visibility'
 import FtFlexBox from './components/ft-flex-box/ft-flex-box.vue'
 import TopNav from './components/top-nav/top-nav.vue'
-import SideNav from './components/side-nav/side-nav.vue'
+import SideNav from './components/SideNav/SideNav.vue'
 import FtNotificationBanner from './components/ft-notification-banner/ft-notification-banner.vue'
-import FtPrompt from './components/ft-prompt/ft-prompt.vue'
+import FtPrompt from './components/FtPrompt/FtPrompt.vue'
 import FtButton from './components/ft-button/ft-button.vue'
 import FtToast from './components/ft-toast/ft-toast.vue'
-import FtProgressBar from './components/ft-progress-bar/ft-progress-bar.vue'
-import $ from 'jquery'
+import FtProgressBar from './components/FtProgressBar/FtProgressBar.vue'
+import FtPlaylistAddVideoPrompt from './components/ft-playlist-add-video-prompt/ft-playlist-add-video-prompt.vue'
+import FtCreatePlaylistPrompt from './components/ft-create-playlist-prompt/ft-create-playlist-prompt.vue'
+import FtKeyboardShortcutPrompt from './components/FtKeyboardShortcutPrompt/FtKeyboardShortcutPrompt.vue'
+import FtSearchFilters from './components/FtSearchFilters/FtSearchFilters.vue'
 import { marked } from 'marked'
-import Parser from 'rss-parser'
 import { IpcChannels } from '../constants'
+import packageDetails from '../../package.json'
+import { openExternalLink, openInternalPath, showToast } from './helpers/utils'
+import { translateWindowTitle } from './helpers/strings'
 
 let ipcRenderer = null
 
-Vue.directive('observe-visibility', ObserveVisibility)
-
-export default Vue.extend({
+export default defineComponent({
   name: 'App',
   components: {
     FtFlexBox,
@@ -28,12 +30,15 @@ export default Vue.extend({
     FtPrompt,
     FtButton,
     FtToast,
-    FtProgressBar
+    FtProgressBar,
+    FtPlaylistAddVideoPrompt,
+    FtCreatePlaylistPrompt,
+    FtSearchFilters,
+    FtKeyboardShortcutPrompt,
   },
   data: function () {
     return {
       dataReady: false,
-      hideOutlines: true,
       showUpdatesBanner: false,
       showBlogBanner: false,
       showReleaseNotes: false,
@@ -42,6 +47,7 @@ export default Vue.extend({
       latestBlogUrl: '',
       updateChangelog: '',
       changeLogTitle: '',
+      isPromptOpen: false,
       lastExternalLinkToBeOpened: '',
       showExternalLinkOpeningPrompt: false,
       externalLinkOpeningPromptValues: [
@@ -51,20 +57,15 @@ export default Vue.extend({
     }
   },
   computed: {
-    isDev: function () {
-      return process.env.NODE_ENV === 'development'
-    },
-    isOpen: function () {
-      return this.$store.getters.getIsSideNavOpen
-    },
-    usingElectron: function() {
-      return this.$store.getters.getUsingElectron
-    },
     showProgressBar: function () {
       return this.$store.getters.getShowProgressBar
     },
-    isRightAligned: function () {
-      return this.$i18n.locale === 'ar'
+    outlinesHidden: function () {
+      return this.$store.getters.getOutlinesHidden
+    },
+    isLocaleRightToLeft: function () {
+      return this.locale === 'ar' || this.locale === 'fa' || this.locale === 'he' ||
+        this.locale === 'ur' || this.locale === 'yi' || this.locale === 'ku'
     },
     checkForUpdates: function () {
       return this.$store.getters.getCheckForUpdates
@@ -72,38 +73,50 @@ export default Vue.extend({
     checkForBlogPosts: function () {
       return this.$store.getters.getCheckForBlogPosts
     },
-    searchSettings: function () {
-      return this.$store.getters.getSearchSettings
+    isKeyboardShortcutPromptShown: function () {
+      return this.$store.getters.getIsKeyboardShortcutPromptShown
     },
-    profileList: function () {
-      return this.$store.getters.getProfileList
+    showAddToPlaylistPrompt: function () {
+      return this.$store.getters.getShowAddToPlaylistPrompt
+    },
+    showCreatePlaylistPrompt: function () {
+      return this.$store.getters.getShowCreatePlaylistPrompt
+    },
+    showSearchFilters: function () {
+      return this.$store.getters.getShowSearchFilters
     },
     windowTitle: function () {
-      if (this.$route.meta.title !== 'Channel' && this.$route.meta.title !== 'Watch') {
-        let title =
-        this.$route.meta.path === '/home'
-          ? process.env.PRODUCT_NAME
-          : `${this.$t(this.$route.meta.title)} - ${process.env.PRODUCT_NAME}`
+      const routePath = this.$route.path
+      if (!routePath.startsWith('/channel/') && !routePath.startsWith('/watch/') && !routePath.startsWith('/hashtag/') && !routePath.startsWith('/playlist/') && !routePath.startsWith('/search/')) {
+        let title = translateWindowTitle(this.$route.meta.title)
         if (!title) {
-          title = process.env.PRODUCT_NAME
+          title = packageDetails.productName
+        } else {
+          title = `${title} - ${packageDetails.productName}`
         }
         return title
       } else {
         return null
       }
     },
-    defaultProfile: function () {
-      return this.$store.getters.getDefaultProfile
-    },
     externalPlayer: function () {
       return this.$store.getters.getExternalPlayer
     },
+
     defaultInvidiousInstance: function () {
       return this.$store.getters.getDefaultInvidiousInstance
     },
 
     baseTheme: function () {
       return this.$store.getters.getBaseTheme
+    },
+
+    isSideNavOpen: function () {
+      return this.$store.getters.getIsSideNavOpen
+    },
+
+    hideLabelsSideBar: function () {
+      return this.$store.getters.getHideLabelsSideBar
     },
 
     mainColor: function () {
@@ -114,19 +127,35 @@ export default Vue.extend({
       return this.$store.getters.getSecColor
     },
 
+    locale: function() {
+      return this.$i18n.locale
+    },
+
     systemTheme: function () {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     },
 
+    landingPage: function() {
+      return '/' + this.$store.getters.getLandingPage
+    },
+
     externalLinkOpeningPromptNames: function () {
       return [
-        this.$t('Yes'),
+        this.$t('Yes, Open Link'),
         this.$t('No')
       ]
     },
 
     externalLinkHandling: function () {
       return this.$store.getters.getExternalLinkHandling
+    },
+
+    appTitle: function () {
+      return this.$store.getters.getAppTitle
+    },
+
+    openDeepLinksInNewWindow: function () {
+      return this.$store.getters.getOpenDeepLinksInNewWindow
     }
   },
   watch: {
@@ -138,35 +167,41 @@ export default Vue.extend({
 
     secColor: 'checkThemeSettings',
 
-    $route () {
-      // react to route changes...
-      // Hide top nav filter panel on page change
-      this.$refs.topNav.hideFilters()
-    }
+    locale: 'setLocale',
+
+    appTitle: 'setDocumentTitle'
   },
   created () {
     this.checkThemeSettings()
-    this.setWindowTitle()
+    this.setLocale()
   },
   mounted: function () {
     this.grabUserSettings().then(async () => {
       this.checkThemeSettings()
 
-      await this.fetchInvidiousInstances({ isDev: this.isDev })
+      await this.fetchInvidiousInstancesFromFile()
       if (this.defaultInvidiousInstance === '') {
         await this.setRandomCurrentInvidiousInstance()
       }
 
+      this.fetchInvidiousInstances().then(e => {
+        if (this.defaultInvidiousInstance === '') {
+          this.setRandomCurrentInvidiousInstance()
+        }
+      })
+
       this.grabAllProfiles(this.$t('Profile.All Channels')).then(async () => {
         this.grabHistory()
         this.grabAllPlaylists()
+        this.grabAllSubscriptions()
+        this.grabSearchHistoryEntries()
 
-        if (this.usingElectron) {
-          console.log('User is using Electron')
+        if (process.env.IS_ELECTRON) {
           ipcRenderer = require('electron').ipcRenderer
           this.setupListenersToSyncWindows()
           this.activateKeyboardShortcuts()
           this.openAllLinksExternally()
+          this.enableSetSearchQueryText()
           this.enableOpenUrl()
           this.watchSystemTheme()
           await this.checkExternalPlayer()
@@ -180,12 +215,20 @@ export default Vue.extend({
         }, 500)
       })
 
-      this.$router.afterEach((to, from) => {
-        this.$refs.topNav.navigateHistory()
+      this.$router.onReady(() => {
+        if (this.$router.currentRoute.path === '/') {
+          this.$router.replace({ path: this.landingPage })
+        }
+
+        this.setWindowTitle()
       })
     })
   },
   methods: {
+    setDocumentTitle: function(value) {
+      document.title = value
+      this.$nextTick(() => this.$refs.topNav?.setActiveNavigationHistoryEntryTitle(value))
+    },
     checkThemeSettings: function () {
       const theme = {
         baseTheme: this.baseTheme || 'dark',
@@ -197,78 +240,82 @@ export default Vue.extend({
     },
 
     updateTheme: function (theme) {
-      console.group('updateTheme')
-      console.log('Theme: ', theme)
       document.body.className = `${theme.baseTheme} main${theme.mainColor} sec${theme.secColor}`
       document.body.dataset.systemTheme = this.systemTheme
-      console.groupEnd()
     },
 
     checkForNewUpdates: function () {
       if (this.checkForUpdates) {
-        const { version } = require('../../package.json')
         const requestUrl = 'https://api.github.com/repos/freetubeapp/freetube/releases?per_page=1'
 
-        $.getJSON(requestUrl, (response) => {
-          const tagName = response[0].tag_name
-          const versionNumber = tagName.replace('v', '').replace('-beta', '')
-          this.updateChangelog = marked.parse(response[0].body)
-          this.changeLogTitle = response[0].name
+        fetch(requestUrl)
+          .then((response) => response.json())
+          .then((json) => {
+            const tagName = json[0].tag_name
+            const versionNumber = tagName.replace('v', '').replace('-beta', '')
 
-          const message = this.$t('Version $ is now available!  Click for more details')
-          this.updateBannerMessage = message.replace('$', versionNumber)
+            let changelog = json[0].body
+              // Link usernames to their GitHub profiles
+              .replaceAll(/@(\S+)\b/g, '[@$1](https://github.com/$1)')
+              // Shorten pull request links to #1234
+              .replaceAll(/https:\/\/github\.com\/FreeTubeApp\/FreeTube\/pull\/(\d+)/g, '[#$1]($&)')
 
-          const appVersion = version.split('.')
-          const latestVersion = versionNumber.split('.')
+            // Add the title
+            changelog = `${changelog}`
 
-          if (parseInt(appVersion[0]) < parseInt(latestVersion[0])) {
-            this.showUpdatesBanner = true
-          } else if (parseInt(appVersion[1]) < parseInt(latestVersion[1])) {
-            this.showUpdatesBanner = true
-          } else if (parseInt(appVersion[2]) < parseInt(latestVersion[2]) && parseInt(appVersion[1]) <= parseInt(latestVersion[1])) {
-            this.showUpdatesBanner = true
-          }
-        }).fail((xhr, textStatus, error) => {
-          console.log(xhr)
-          console.log(textStatus)
-          console.log(requestUrl)
-          console.log(error)
-        })
+            this.updateChangelog = marked.parse(changelog)
+            this.changeLogTitle = json[0].name
+
+            this.updateBannerMessage = this.$t('Version {versionNumber} is now available!  Click for more details', { versionNumber })
+
+            const appVersion = packageDetails.version.split('.')
+            const latestVersion = versionNumber.split('.')
+
+            if (parseInt(appVersion[0]) < parseInt(latestVersion[0])) {
+              this.showUpdatesBanner = true
+            } else if (parseInt(appVersion[1]) < parseInt(latestVersion[1])) {
+              this.showUpdatesBanner = true
+            } else if (parseInt(appVersion[2]) < parseInt(latestVersion[2]) && parseInt(appVersion[1]) <= parseInt(latestVersion[1])) {
+              this.showUpdatesBanner = true
+            }
+          })
+          .catch((error) => {
+            console.error('errored while checking for updates', requestUrl, error)
+          })
       }
     },
 
     checkForNewBlogPosts: function () {
       if (this.checkForBlogPosts) {
-        const parser = new Parser()
-        const feedUrl = 'https://write.as/freetube/feed/'
         let lastAppWasRunning = localStorage.getItem('lastAppWasRunning')
 
         if (lastAppWasRunning !== null) {
           lastAppWasRunning = new Date(lastAppWasRunning)
         }
 
-        parser.parseURL(feedUrl).then((response) => {
-          const latestBlog = response.items[0]
-          const latestPubDate = new Date(latestBlog.pubDate)
+        fetch('https://write.as/freetube/feed/')
+          .then(response => response.text())
+          .then(response => {
+            const xmlDom = new DOMParser().parseFromString(response, 'application/xml')
 
-          if (lastAppWasRunning === null || latestPubDate > lastAppWasRunning) {
-            const message = this.$t('A new blog is now available, $. Click to view more')
-            this.blogBannerMessage = message.replace('$', latestBlog.title)
-            this.latestBlogUrl = latestBlog.link
-            this.showBlogBanner = true
-          }
+            const latestBlog = xmlDom.querySelector('item')
+            const latestPubDate = new Date(latestBlog.querySelector('pubDate').textContent)
 
-          localStorage.setItem('lastAppWasRunning', new Date())
-        })
+            if (lastAppWasRunning === null || latestPubDate > lastAppWasRunning) {
+              const title = latestBlog.querySelector('title').textContent
+
+              this.blogBannerMessage = this.$t('A new blog is now available, {blogTitle}. Click to view more', { blogTitle: title })
+              this.latestBlogUrl = latestBlog.querySelector('link').textContent
+              this.showBlogBanner = true
+            }
+
+            localStorage.setItem('lastAppWasRunning', new Date())
+          })
       }
     },
 
     checkExternalPlayer: async function () {
-      const payload = {
-        isDev: this.isDev,
-        externalPlayer: this.externalPlayer
-      }
-      this.getExternalPlayerCmdArgumentsData(payload)
+      this.getExternalPlayerCmdArgumentsData()
     },
 
     handleUpdateBannerClick: function (response) {
@@ -281,45 +328,50 @@ export default Vue.extend({
 
     handleNewBlogBannerClick: function (response) {
       if (response) {
-        this.openExternalLink(this.latestBlogUrl)
+        openExternalLink(this.latestBlogUrl)
       }
 
       this.showBlogBanner = false
     },
 
+    handlePromptPortalUpdate: function(newVal) {
+      this.isPromptOpen = newVal
+    },
+
     openDownloadsPage: function () {
       const url = 'https://freetubeapp.io#download'
-      this.openExternalLink(url)
+      openExternalLink(url)
       this.showReleaseNotes = false
       this.showUpdatesBanner = false
     },
 
     activateKeyboardShortcuts: function () {
-      $(document).on('keydown', this.handleKeyboardShortcuts)
-      $(document).on('mousedown', () => {
-        this.hideOutlines = true
+      document.addEventListener('keydown', this.handleKeyboardShortcuts)
+      document.addEventListener('mousedown', () => {
+        this.hideOutlines()
       })
     },
 
     handleKeyboardShortcuts: function (event) {
+      // ignore user typing in HTML `input` elements
+      if (event.shiftKey && event.key === '?' && event.target.tagName !== 'INPUT') {
+        this.$store.commit('setIsKeyboardShortcutPromptShown', !this.isKeyboardShortcutPromptShown)
+      }
+
       if (event.altKey) {
-        switch (event.code) {
-          case 'ArrowRight':
-            this.$refs.topNav.historyForward()
-            break
-          case 'ArrowLeft':
-            this.$refs.topNav.historyBack()
-            break
-          case 'KeyD':
+        switch (event.key) {
+          case 'D':
+          case 'd':
             this.$refs.topNav.focusSearch()
             break
         }
       }
-      switch (event.code) {
+      switch (event.key) {
         case 'Tab':
-          this.hideOutlines = false
+          this.showOutlines()
           break
-        case 'KeyL':
+        case 'L':
+        case 'l':
           if ((process.platform !== 'darwin' && event.ctrlKey) ||
             (process.platform === 'darwin' && event.metaKey)) {
             this.$refs.topNav.focusSearch()
@@ -329,22 +381,26 @@ export default Vue.extend({
     },
 
     openAllLinksExternally: function () {
-      $(document).on('click', 'a[href^="http"]', (event) => {
-        this.handleLinkClick(event)
+      const isExternalLink = (event) => event.target.tagName === 'A' && !event.target.href.startsWith(window.location.origin)
+
+      document.addEventListener('click', (event) => {
+        if (isExternalLink(event)) {
+          this.handleLinkClick(event)
+        }
       })
 
-      $(document).on('auxclick', 'a[href^="http"]', (event) => {
+      document.addEventListener('auxclick', (event) => {
         // auxclick fires for all clicks not performed with the primary button
         // only handle the link click if it was the middle button,
         // otherwise the context menu breaks
-        if (event.button === 1) {
+        if (isExternalLink(event) && event.button === 1) {
           this.handleLinkClick(event)
         }
       })
     },
 
     handleLinkClick: function (event) {
-      const el = event.currentTarget
+      const el = event.target
       event.preventDefault()
 
       // Check if it's a YouTube link
@@ -359,9 +415,7 @@ export default Vue.extend({
         })
       } else if (this.externalLinkHandling === 'doNothing') {
         // Let user know opening external link is disabled via setting
-        this.showToast({
-          message: this.$t('External link opening has been disabled in the general settings')
-        })
+        showToast(this.$t('External link opening has been disabled in the general settings'))
       } else if (this.externalLinkHandling === 'openLinkAfterPrompt') {
         // Storing the URL is necessary as
         // there is no other way to pass the URL to click callback
@@ -369,7 +423,7 @@ export default Vue.extend({
         this.showExternalLinkOpeningPrompt = true
       } else {
         // Open links externally
-        this.openExternalLink(el.href)
+        openExternalLink(el.href)
       }
     },
 
@@ -386,9 +440,9 @@ export default Vue.extend({
             if (playlistId && playlistId.length > 0) {
               query.playlistId = playlistId
             }
-            const path = `/watch/${videoId}`
-            this.openInternalPath({
-              path,
+
+            openInternalPath({
+              path: `/watch/${videoId}`,
               query,
               doCreateNewWindow
             })
@@ -398,9 +452,8 @@ export default Vue.extend({
           case 'playlist': {
             const { playlistId, query } = result
 
-            const path = `/playlist/${playlistId}`
-            this.openInternalPath({
-              path,
+            openInternalPath({
+              path: `/playlist/${playlistId}`,
               query,
               doCreateNewWindow
             })
@@ -410,35 +463,44 @@ export default Vue.extend({
           case 'search': {
             const { searchQuery, query } = result
 
-            const path = `/search/${encodeURIComponent(searchQuery)}`
-            this.openInternalPath({
-              path,
+            openInternalPath({
+              path: `/search/${encodeURIComponent(searchQuery)}`,
+              query,
+              doCreateNewWindow,
+              searchQueryText: searchQuery
+            })
+            break
+          }
+
+          case 'hashtag': {
+            const { hashtag } = result
+            openInternalPath({
+              path: `/hashtag/${encodeURIComponent(hashtag)}`,
+              doCreateNewWindow
+            })
+            break
+          }
+
+          case 'post': {
+            const { postId, query } = result
+
+            openInternalPath({
+              path: `/post/${postId}`,
               query,
               doCreateNewWindow
             })
             break
           }
 
-          case 'hashtag': {
-            // TODO: Implement a hashtag related view
-            let message = 'Hashtags have not yet been implemented, try again later'
-            if (this.$te(message) && this.$t(message) !== '') {
-              message = this.$t(message)
-            }
-
-            this.showToast({
-              message: message
-            })
-            break
-          }
-
           case 'channel': {
-            const { channelId, subPath } = result
+            const { channelId, subPath, url } = result
 
-            const path = `/channel/${channelId}/${subPath}`
-            this.openInternalPath({
-              path,
-              doCreateNewWindow
+            openInternalPath({
+              path: `/channel/${channelId}/${subPath}`,
+              doCreateNewWindow,
+              query: {
+                url
+              }
             })
             break
           }
@@ -450,14 +512,7 @@ export default Vue.extend({
 
           default: {
             // Unknown URL type
-            let message = 'Unknown YouTube url type, cannot be opened in app'
-            if (this.$te(message) && this.$t(message) !== '') {
-              message = this.$t(message)
-            }
-
-            this.showToast({
-              message: message
-            })
+            showToast(this.$t('Unknown YouTube url type, cannot be opened in app'))
           }
         }
       })
@@ -473,35 +528,24 @@ export default Vue.extend({
       })
     },
 
-    openInternalPath: function({ path, doCreateNewWindow, query = {} }) {
-      if (this.usingElectron && doCreateNewWindow) {
-        const { ipcRenderer } = require('electron')
-
-        // Combine current document path and new "hash" as new window startup URL
-        const newWindowStartupURL = [
-          window.location.href.split('#')[0],
-          `#${path}?${(new URLSearchParams(query)).toString()}`
-        ].join('')
-        ipcRenderer.send(IpcChannels.CREATE_NEW_WINDOW, {
-          windowStartupUrl: newWindowStartupURL
-        })
-      } else {
-        // Web
-        this.$router.push({
-          path,
-          query
-        })
-      }
-    },
-
-    enableOpenUrl: function () {
-      ipcRenderer.on('openUrl', (event, url) => {
-        if (url) {
-          this.handleYoutubeLink(url)
+    enableSetSearchQueryText: function () {
+      ipcRenderer.on(IpcChannels.UPDATE_SEARCH_INPUT_TEXT, (event, searchQueryText) => {
+        if (searchQueryText) {
+          this.$refs.topNav.updateSearchInputText(searchQueryText)
         }
       })
 
-      ipcRenderer.send('appReady')
+      ipcRenderer.send(IpcChannels.SEARCH_INPUT_HANDLING_READY)
+    },
+
+    enableOpenUrl: function () {
+      ipcRenderer.on(IpcChannels.OPEN_URL, (event, url, { isLaunchLink = false } = { }) => {
+        if (url) {
+          this.handleYoutubeLink(url, { doCreateNewWindow: this.openDeepLinksInNewWindow && !isLaunchLink })
+        }
+      })
+
+      ipcRenderer.send(IpcChannels.APP_READY)
     },
 
     handleExternalLinkOpeningPromptAnswer: function (option) {
@@ -512,35 +556,49 @@ export default Vue.extend({
         // if `lastExternalLinkToBeOpened` is empty
 
         // Open links externally
-        this.openExternalLink(this.lastExternalLinkToBeOpened)
+        openExternalLink(this.lastExternalLinkToBeOpened)
       }
     },
 
     setWindowTitle: function() {
       if (this.windowTitle !== null) {
-        document.title = this.windowTitle
+        this.setAppTitle(this.windowTitle)
       }
     },
 
-    ...mapMutations([
-      'setInvidiousInstancesList'
-    ]),
+    setLocale: function() {
+      document.documentElement.setAttribute('lang', this.locale)
+      if (this.isLocaleRightToLeft) {
+        document.body.dir = 'rtl'
+      } else {
+        document.body.dir = 'ltr'
+      }
+    },
 
     ...mapActions([
-      'showToast',
-      'openExternalLink',
       'grabUserSettings',
       'grabAllProfiles',
       'grabHistory',
       'grabAllPlaylists',
+      'grabAllSubscriptions',
+      'grabSearchHistoryEntries',
       'getYoutubeUrlInfo',
       'getExternalPlayerCmdArgumentsData',
       'fetchInvidiousInstances',
+      'fetchInvidiousInstancesFromFile',
       'setRandomCurrentInvidiousInstance',
       'setupListenersToSyncWindows',
+      'hideKeyboardShortcutPrompt',
+      'showKeyboardShortcutPrompt',
       'updateBaseTheme',
       'updateMainColor',
-      'updateSecColor'
+      'updateSecColor',
+      'showOutlines',
+      'hideOutlines',
+    ]),
+
+    ...mapMutations([
+      'setAppTitle'
     ])
   }
 })

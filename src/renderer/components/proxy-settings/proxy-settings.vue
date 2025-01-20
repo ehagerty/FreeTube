@@ -1,19 +1,26 @@
 <template>
-  <details>
-    <summary>
-      <h3>
-        {{ $t("Settings.Proxy Settings.Proxy Settings") }}
-      </h3>
-    </summary>
-    <hr>
-    <ft-flex-box class="subscriptionSettingsFlexBox">
+  <ft-settings-section
+    :title="$t('Settings.Proxy Settings.Proxy Settings')"
+  >
+    <ft-flex-box class="settingsFlexStart500px">
+      <p
+        v-if="useProxy"
+        class="proxy-warning"
+      >
+        <font-awesome-icon
+          :icon="['fas', 'circle-exclamation']"
+          class="warning-icon"
+          fixed-width
+        />
+        {{ $t('Settings.Proxy Settings.Proxy Warning') }}
+      </p>
       <ft-toggle-switch
         :label="$t('Settings.Proxy Settings.Enable Tor / Proxy')"
         :default-value="useProxy"
         @change="handleUpdateProxy"
       />
     </ft-flex-box>
-    <div
+    <template
       v-if="useProxy"
     >
       <ft-flex-box>
@@ -22,6 +29,8 @@
           :value="proxyProtocol"
           :select-names="protocolNames"
           :select-values="protocolValues"
+          class="protocol-dropdown"
+          :icon="['fas', 'network-wired']"
           @change="handleUpdateProxyProtocol"
         />
       </ft-flex-box>
@@ -32,20 +41,23 @@
           :show-label="true"
           :value="proxyHostname"
           @input="handleUpdateProxyHostname"
+          @keydown.enter.native="testProxy"
         />
         <ft-input
           :placeholder="$t('Settings.Proxy Settings.Proxy Port Number')"
           :show-action-button="false"
           :show-label="true"
           :value="proxyPort"
+          :maxlength="5"
           @input="handleUpdateProxyPort"
+          @keydown.enter.native="testProxy"
         />
       </ft-flex-box>
       <p
         class="center"
         :style="{opacity: useProxy ? 1 : 0.4}"
       >
-        {{ $t('Settings.Proxy Settings.Clicking on Test Proxy will send a request to') }} https://freegeoip.app/json/
+        {{ $t('Settings.Proxy Settings.Clicking on Test Proxy will send a request to') }} {{ proxyTestUrl }}
       </p>
       <ft-flex-box>
         <ft-button
@@ -64,21 +76,21 @@
           {{ $t('Settings.Proxy Settings.Your Info') }}
         </h3>
         <p>
-          {{ $t('Settings.Proxy Settings.Ip') }}: {{ proxyIp }}
+          {{ $t('Display Label', { label: $t('Settings.Proxy Settings.Ip'), value: proxyIp }) }}
         </p>
         <p>
-          {{ $t('Settings.Proxy Settings.Country') }}: {{ proxyCountry }}
+          {{ $t('Display Label', { label: $t('Settings.Proxy Settings.Country'), value: proxyCountry }) }}
         </p>
         <p>
-          {{ $t('Settings.Proxy Settings.Region') }}: {{ proxyRegion }}
+          {{ $t('Display Label', { label: $t('Settings.Proxy Settings.Region'), value: proxyRegion }) }}
         </p>
         <p>
-          {{ $t('Settings.Proxy Settings.City') }}: {{ proxyCity }}
+          {{ $t('Display Label', { label: $t('Settings.Proxy Settings.City'), value: proxyCity }) }}
         </p>
       </div>
-    </div>
-  </details>
+    </template>
+  </ft-settings-section>
 </template>
 
 <script src="./proxy-settings.js" />
-<style scoped lang="sass" src="./proxy-settings.sass" />
+<style scoped src="./proxy-settings.css" />

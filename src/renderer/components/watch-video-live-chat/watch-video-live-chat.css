@@ -1,10 +1,15 @@
+.card.hasError {
+  block-size: auto !important;
+  padding: 16px;
+}
+
 .relative {
   position: relative;
 }
 
 .messageContainer {
-  width: 100%;
-  height: 100%;
+  inline-size: 100%;
+  block-size: 100%;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -12,15 +17,34 @@
   text-align: center;
 }
 
+.messageContainer.hasError {
+  flex-direction: column;
+  row-gap: 16px;
+}
+
+.watchingCount {
+  font-weight: normal;
+  margin-inline-start: 5px;
+  font-size: 15px;
+  color: var(--tertiary-text-color);
+}
+
 .message {
   font-size: 18px;
   color: var(--tertiary-text-color);
   padding: 0;
   margin: 0;
+  word-break: break-word;
+}
+
+:deep(.liveChatEmoji) {
+  vertical-align: middle;
+  margin-block: 0;
+  margin-inline: 2px;
 }
 
 .errorIcon {
-  width: 100%;
+  inline-size: 100%;
   color: var(--tertiary-text-color);
   font-size: 100px;
 }
@@ -33,8 +57,8 @@
 }
 
 .superChatComments {
-  width: 100%;
-  height: 50px;
+  inline-size: 100%;
+  block-size: 50px;
   overflow-x: auto;
   white-space: nowrap;
 }
@@ -42,23 +66,35 @@
 .superChat {
   display: inline-block;
   padding: 1px;
-  padding-right: 10px;
-  margin-left: 2px;
-  margin-right: 2px;
-  height: 30px;
+  padding-inline-end: 10px;
+  margin-inline: 2px;
+  block-size: 30px;
   cursor: pointer;
-  border-radius: 200px 200px 200px 200px;
-  -webkit-border-radius: 200px 200px 200px 200px;
+  background-color: var(--primary-color);
+  border-radius: 200px;
 }
 
 .superChatContent {
-  margin-left: 32px;
-  margin-top: 6px;
+  margin-inline-start: 32px;
+  margin-block-start: -25px;
+  color: var(--text-with-main-color);
+}
+
+.channelThumbnail {
+  inline-size: 25px;
+  border-radius: 200px;
+}
+
+.channelName {
+  color: var(--tertiary-text-color);
+  font-weight: bold;
+  padding-inline-end: 5px;
 }
 
 .superChat .channelThumbnail {
-  margin-top: 3px;
-  margin-left: 3px;
+  margin-block-start: 3px;
+  margin-inline-start: 3px;
+  block-size: 25px;
 }
 
 .donationAmount {
@@ -66,68 +102,37 @@
 }
 
 .openedSuperChat {
-  background-color: rgba(0, 0, 0, 0.7);
-  width: 100%;
-  height: 415px;
+  background-color: rgb(0 0 0 / 70%);
+  inline-size: 100%;
+  block-size: 415px;
   position: absolute;
-  margin-left: -16px;
-  padding-right: 32px;
-  bottom: -15px;
+  margin-inline-start: -16px;
+  padding-inline-end: 32px;
+  inset-block-end: -15px;
   cursor: auto;
   z-index: 1;
 }
 
-.openedSuperChat .superChatMessage {
-  position: absolute;
-}
-
 .superChatMessage {
-  width: 90%;
-  margin-left: 5%;
-  margin-right: 5%;
-  margin-top: 10px;
+  inline-size: 90%;
+  grid-template-columns: auto;
+  margin-inline: 5%;
+  margin-block: 25px 10px;
   background-color: var(--primary-color);
-  border-radius: 5px 5px 5px 5px;
-  -webkit-border-radius: 5px 5px 5px 5px;
+  border-radius: 5px;
+  position: relative;
 }
 
 .upperSuperChatMessage {
-  margin-top: -15px;
-  width: 100%;
-  height: 55px;
+  margin-block-start: -15px;
+  inline-size: 100%;
+  block-size: 55px;
   background-color: var(--primary-color-hover);
+  border-radius: 5px 5px 0 0;
 }
 
-.upperSuperChatMessage .channelThumbnail {
-  width: 45px;
-  margin-left: 10px;
-  margin-top: 5px;
-}
-
-.upperSuperChatMessage .channelName {
-  color: var(--text-with-main-color);
-  opacity: 0.7;
-  position: relative;
-  top: 5px;
-  margin-left: 60px;
-}
-
-.upperSuperChatMessage .donationAmount {
-  color: var(--text-with-main-color);
-  font-weight: bold;
-  margin-left: 65px;
-  position: relative;
-  bottom: 5px;
-}
-
-.superChatMessage .chatMessage {
-  color: var(--text-with-main-color);
-  margin-left: 20px;
-}
-
-.liveChatComments {
-  width: 100%;
-  overflow-y: auto;
+.openedSuperChat .superChatMessage {
+  position: absolute;
 }
 
 .comment .superChatMessage {
@@ -135,69 +140,88 @@
 }
 
 .comment .upperSuperChatMessage {
-  padding: 0px;
+  padding: 0;
 }
 
 .comment {
-  width: 100%;
-  padding-top: 5px;
-  padding-bottom: 7px;
+  inline-size: 100%;
+  padding-block: 5px 7px;
+  display: grid;
+  grid-template-columns: min-content auto;
+  gap: 5px;
 }
 
-.channelThumbnail {
-  width: 25px;
-  float: left;
-  border-radius: 200px 200px 200px 200px;
-  -webkit-border-radius: 200px 200px 200px 200px;
+.upperSuperChatMessage .channelThumbnail {
+  inline-size: 45px;
+  margin-inline-start: 10px;
+  margin-block-start: 5px;
+}
+
+.upperSuperChatMessage .channelName {
+  color: var(--text-with-main-color);
+  opacity: 0.7;
+  position: absolute;
+  inset-block-start: -20px;
+  margin-inline-start: 65px;
+}
+
+.upperSuperChatMessage .donationAmount {
+  color: var(--text-with-main-color);
+  font-weight: bold;
+  margin-inline-start: 65px;
+  position: absolute;
+  inset-block-start: 0;
+}
+
+.superChatMessage .chatMessage {
+  color: var(--text-with-main-color);
+  margin-inline-start: 20px;
+}
+
+.liveChatComments {
+  inline-size: 100%;
+  overflow-y: auto;
 }
 
 .chatContent {
-  margin-left: 30px;
-  margin-top: 5px;
-  margin-bottom: 2px;
+  margin-block: 5px 2px;
   font-size: 12px;
   word-wrap: break-word;
 }
 
-.channelName {
-  color: var(--tertiary-text-color);
-  font-weight: bold;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
 .member {
-  color: #4CAF50;
+  color: #4caf50;
 }
 
 .moderator {
-  color: #2196F3;
+  color: #2196f3;
 }
 
 .owner {
-  margin-right: 2px;
+  margin-inline-end: 2px;
   background-color: var(--primary-color);
   color: var(--text-with-main-color);
 }
 
 .badgeImage {
-  width: 14px;
+  inline-size: 14px;
 }
 
 .scrollToBottom {
   background-color: var(--accent-color);
-  width: 35px;
-  height: 35px;
+  inline-size: 35px;
+  block-size: 35px;
   position: absolute;
-  left: 45%;
-  bottom: 20px;
+  inset-inline-start: 45%;
+  inset-block-end: 20px;
   cursor: pointer;
-  border-radius: 200px 200px 200px 200px;
-  -webkit-border-radius: 200px 200px 200px 200px;
+  border-radius: 200px;
+  text-align: center;
   transition: background 0.2s ease-out;
 }
 
-.scrollToBottom:hover {
+.scrollToBottom:hover,
+.scrollToBottom:focus {
   background-color: var(--accent-color-light);
   transition: background 0.2s ease-in;
 }
@@ -206,6 +230,5 @@
   color: var(--text-with-accent-color);
   font-size: 22px;
   position: relative;
-  left: 0.5rem;
-  top: 0.45rem;
+  inset-block-start: 0.45rem;
 }

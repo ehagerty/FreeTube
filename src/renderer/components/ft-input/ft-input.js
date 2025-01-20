@@ -1,16 +1,31 @@
-import Vue from 'vue'
-import FtTooltip from '../ft-tooltip/ft-tooltip.vue'
+import { defineComponent } from 'vue'
 import { mapActions } from 'vuex'
 
-export default Vue.extend({
+import FtTooltip from '../ft-tooltip/ft-tooltip.vue'
+import { isKeyboardEventKeyPrintableChar, isNullOrEmpty } from '../../helpers/strings'
+
+export default defineComponent({
   name: 'FtInput',
   components: {
     'ft-tooltip': FtTooltip
   },
   props: {
+    inputType: {
+      type: String,
+      required: false,
+      default: 'text'
+    },
     placeholder: {
       type: String,
       required: true
+    },
+    label: {
+      type: String,
+      default: null
+    },
+    maxlength: {
+      type: Number,
+      default: null
     },
     value: {
       type: String,
@@ -19,6 +34,10 @@ export default Vue.extend({
     showActionButton: {
       type: Boolean,
       default: true
+    },
+    forceActionButtonIconName: {
+      type: Array,
+      default: null
     },
     showClearTextButton: {
       type: Boolean,
@@ -32,45 +51,61 @@ export default Vue.extend({
       type: Boolean,
       default: false
     },
-    selectOnFocus: {
-      type: Boolean,
-      default: false
-    },
     disabled: {
       type: Boolean,
       default: false
     },
-    spellcheck: {
-      type: Boolean,
-      default: true
-    },
     dataList: {
       type: Array,
       default: () => { return [] }
+    },
+    dataListProperties: {
+      type: Array,
+      default: () => { return [] }
+    },
+    searchResultIconNames: {
+      type: Array,
+      default: null
+    },
+    showDataWhenEmpty: {
+      type: Boolean,
+      default: false
     },
     tooltip: {
       type: String,
       default: ''
     }
   },
+  emits: ['clear', 'click', 'input', 'remove'],
   data: function () {
+    let actionIcon = ['fas', 'search']
+    if (this.forceActionButtonIconName !== null) {
+      actionIcon = this.forceActionButtonIconName
+    }
     return {
       id: '',
       inputData: '',
       searchState: {
         showOptions: false,
         selectedOption: -1,
-        isPointerInList: false
+        isPointerInList: false,
+        keyboardSelectedOptionIndex: -1,
       },
       visibleDataList: this.dataList,
       // This button should be invisible on app start
       // As the text input box should be empty
       clearTextButtonExisting: false,
       clearTextButtonVisible: false,
-      actionButtonIconName: 'search'
+      removeButtonSelectedIndex: -1,
+      removalMade: false,
+      actionButtonIconName: actionIcon
     }
   },
   computed: {
+    showOptions: function () {
+      return (this.inputData !== '' || this.showDataWhenEmpty) && this.visibleDataList.length > 0 && this.searchState.showOptions
+    },
+
     barColor: function () {
       return this.$store.getters.getBarColor
     },
@@ -79,37 +114,70 @@ export default Vue.extend({
       return this.isSearch && this.barColor
     },
 
-    idDataList: function () {
-      return `${this.id}_datalist`
+    inputDataPresent: function () {
+      return this.inputDataDisplayed.length > 0
     },
 
-    inputDataPresent: function () {
-      return this.inputData.length > 0
+    inputDataDisplayed() {
+      if (!this.isSearch) { return this.inputData }
+
+      const selectedOptionValue = this.searchStateKeyboardSelectedOptionValue
+      if (selectedOptionValue != null && selectedOptionValue !== '') {
+        return selectedOptionValue
+      }
+
+      return this.inputData
+    },
+
+    searchStateKeyboardSelectedOptionValue() {
+      if (this.searchState.keyboardSelectedOptionIndex === -1) { return null }
+      return this.visibleDataList[this.searchState.keyboardSelectedOptionIndex]
+    },
+  },
+  watch: {
+    dataList(val, oldVal) {
+      if (val !== oldVal) {
+        this.updateVisibleDataList()
+      }
+    },
+    inputData(val, oldVal) {
+      if (val !== oldVal) {
+        this.updateVisibleDataList()
+      }
+    },
+    value(val, oldVal) {
+      if (val !== oldVal) {
+        this.inputData = val
+      }
     }
   },
-  mounted: function () {
+  created: function () {
     this.id = this._uid
     this.inputData = this.value
     this.updateVisibleDataList()
-
-    setTimeout(this.addListener, 200)
   },
   methods: {
-    handleClick: function () {
+    handleClick: function (e) {
       // No action if no input text
-      if (!this.inputDataPresent) { return }
+      if (!this.inputDataPresent) {
+        return
+      }
 
       this.searchState.showOptions = false
+      this.searchState.selectedOption = -1
+      this.searchState.keyboardSelectedOptionIndex = -1
+      this.removeButtonSelectedIndex = -1
       this.$emit('input', this.inputData)
-      this.$emit('click', this.inputData)
+      this.$emit('click', this.inputData, { event: e })
     },
 
     handleInput: function (val) {
+      this.inputData = val
+
       if (this.isSearch &&
         this.searchState.selectedOption !== -1 &&
         this.inputData === this.visibleDataList[this.searchState.selectedOption]) { return }
       this.handleActionIconChange()
-      this.updateVisibleDataList()
       this.$emit('input', val)
     },
 
@@ -120,12 +188,12 @@ export default Vue.extend({
       this.inputData = ''
       this.handleActionIconChange()
       this.updateVisibleDataList()
+      this.searchState.isPointerInList = false
 
-      const inputElement = document.getElementById(this.id)
-      inputElement.value = ''
+      this.$refs.input.value = ''
 
       // Focus on input element after text is clear for better UX
-      inputElement.focus()
+      this.$refs.input.focus()
 
       this.$emit('clear')
     },
@@ -134,9 +202,9 @@ export default Vue.extend({
       // Only need to update icon if visible
       if (!this.showActionButton) { return }
 
-      if (!this.inputDataPresent) {
+      if (!this.inputDataPresent && this.forceActionButtonIconName === null) {
         // Change back to default icon if text is blank
-        this.actionButtonIconName = 'search'
+        this.actionButtonIconName = ['fas', 'search']
         return
       }
 
@@ -150,11 +218,9 @@ export default Vue.extend({
             case 'playlist':
             case 'search':
             case 'channel':
-              isYoutubeLink = true
-              break
             case 'hashtag':
-              // TODO: Implement a hashtag related view
-              // isYoutubeLink is already `false`
+            case 'post':
+              isYoutubeLink = true
               break
 
             case 'invalid_url':
@@ -162,96 +228,153 @@ export default Vue.extend({
               // isYoutubeLink is already `false`
             }
           }
-
-          if (isYoutubeLink) {
-            // Go to URL (i.e. Video/Playlist/Channel
-            this.actionButtonIconName = 'arrow-right'
-          } else {
-            // Search with text
-            this.actionButtonIconName = 'search'
+          if (this.forceActionButtonIconName === null) {
+            if (isYoutubeLink) {
+              // Go to URL (i.e. Video/Playlist/Channel
+              this.actionButtonIconName = ['fas', 'arrow-right']
+            } else {
+              // Search with text
+              this.actionButtonIconName = ['fas', 'search']
+            }
           }
         })
       } catch (ex) {
         // On exception, consider text as invalid URL
-        this.actionButtonIconName = 'search'
+        if (this.forceActionButtonIconName === null) {
+          this.actionButtonIconName = ['fas', 'search']
+        }
         // Rethrow exception
         throw ex
       }
     },
 
-    addListener: function () {
-      const inputElement = document.getElementById(this.id)
-
-      if (inputElement !== null) {
-        inputElement.addEventListener('keydown', (event) => {
-          if (event.keyCode === 13) {
-            this.handleClick()
-          }
-        })
-      }
-    },
-
     handleOptionClick: function (index) {
+      if (this.removeButtonSelectedIndex !== -1) {
+        this.handleRemoveClick(index)
+        return
+      }
       this.searchState.showOptions = false
       this.inputData = this.visibleDataList[index]
       this.$emit('input', this.inputData)
       this.handleClick()
     },
 
-    handleKeyDown: function (keyCode) {
-      if (this.visibleDataList.length === 0) { return }
-      // Update selectedOption based on arrow key pressed
-      if (keyCode === 40) {
-        this.searchState.selectedOption = (this.searchState.selectedOption + 1) % this.visibleDataList.length
-      } else if (keyCode === 38) {
-        if (this.searchState.selectedOption < 1) {
-          this.searchState.selectedOption = this.visibleDataList.length - 1
+    handleRemoveClick: function (index) {
+      if (!this.dataListProperties[index]?.isRemoveable) { return }
+
+      // keep input in focus even when the to-be-removed "Remove" button was clicked
+      this.$refs.input.focus()
+      this.removalMade = true
+      this.$emit('remove', this.visibleDataList[index])
+    },
+
+    /**
+     * @param {KeyboardEvent} event
+     */
+    handleKeyDown: function (event) {
+      // Update Input box value if enter key was pressed and option selected
+      if (event.key === 'Enter') {
+        if (this.removeButtonSelectedIndex !== -1) {
+          this.handleRemoveClick(this.removeButtonSelectedIndex)
+        } else if (this.searchState.selectedOption !== -1) {
+          this.searchState.showOptions = false
+          event.preventDefault()
+          this.inputData = this.visibleDataList[this.searchState.selectedOption]
+          this.handleOptionClick(this.searchState.selectedOption)
         } else {
-          this.searchState.selectedOption--
+          this.handleClick(event)
         }
+
+        return
+      }
+
+      if (this.visibleDataList.length === 0) { return }
+
+      this.searchState.showOptions = true
+
+      // "select" the Remove button through right arrow navigation, and unselect it with the left arrow
+      if (event.key === 'ArrowRight') {
+        this.removeButtonSelectedIndex = this.searchState.selectedOption
+      } else if (event.key === 'ArrowLeft') {
+        this.removeButtonSelectedIndex = -1
+      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault()
+        const newIndex = this.searchState.selectedOption + (event.key === 'ArrowDown' ? 1 : -1)
+        this.updateSelectedOptionIndex(newIndex)
       } else {
+        const selectedOptionValue = this.searchStateKeyboardSelectedOptionValue
+        // Keyboard selected & is char
+        if (!isNullOrEmpty(selectedOptionValue) && isKeyboardEventKeyPrintableChar(event.key)) {
+          // Update input based on KB selected suggestion value instead of current input value
+          event.preventDefault()
+          this.handleInput(`${selectedOptionValue}${event.key}`)
+        }
+      }
+    },
+
+    // Updates the selected dropdown option index and handles the under/over-flow behavior
+    updateSelectedOptionIndex: function (index) {
+      this.searchState.selectedOption = index
+
+      // unset selection of "Remove" button
+      this.removeButtonSelectedIndex = -1
+
+      // Allow deselecting suggestion
+      if (this.searchState.selectedOption < -1) {
+        this.searchState.selectedOption = this.visibleDataList.length - 1
+      } else if (this.searchState.selectedOption > this.visibleDataList.length - 1) {
         this.searchState.selectedOption = -1
       }
 
-      // Key pressed isn't enter
-      if (keyCode !== 13) {
-        this.searchState.showOptions = true
-      }
-      // Update Input box value if arrow keys were pressed
-      if ((keyCode === 40 || keyCode === 38) && this.searchState.selectedOption !== -1) {
-        this.inputData = this.visibleDataList[this.searchState.selectedOption]
-      } else {
-        this.updateVisibleDataList()
-      }
+      // Update displayed value
+      this.searchState.keyboardSelectedOptionIndex = this.searchState.selectedOption
     },
 
     handleInputBlur: function () {
       if (!this.searchState.isPointerInList) { this.searchState.showOptions = false }
     },
 
-    handleFocus: function(e) {
+    handleFocus: function () {
       this.searchState.showOptions = true
-      if (this.selectOnFocus) {
-        e.target.select()
-      }
     },
 
     updateVisibleDataList: function () {
-      if (this.dataList.length === 0) { return }
-      if (this.inputData === '') {
+      // Reset selected option before it's updated
+      // Block resetting if it was just the "Remove" button that was pressed
+      if (!this.removalMade || this.searchState.selectedOption >= this.dataList.length) {
+        this.searchState.selectedOption = -1
+        this.searchState.keyboardSelectedOptionIndex = -1
+        this.removeButtonSelectedIndex = -1
+      }
+
+      this.removalMade = false
+
+      if (this.inputData.trim() === '') {
         this.visibleDataList = this.dataList
         return
       }
       // get list of items that match input
-      const visList = this.dataList.filter(x => {
-        if (x.toLowerCase().indexOf(this.inputData.toLowerCase()) !== -1) {
-          return true
-        } else {
-          return false
-        }
-      })
+      const lowerCaseInputData = this.inputData.toLowerCase()
 
-      this.visibleDataList = visList
+      this.visibleDataList = this.dataList.filter(x => {
+        return x.toLowerCase().indexOf(lowerCaseInputData) !== -1
+      })
+    },
+
+    updateInputData: function(text) {
+      this.inputData = text
+    },
+
+    focus() {
+      this.$refs.input.focus()
+    },
+
+    select() {
+      this.$refs.input.select()
+    },
+
+    blur() {
+      this.$refs.input.blur()
     },
 
     ...mapActions([

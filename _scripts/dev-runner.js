@@ -8,15 +8,30 @@ const kill = require('tree-kill')
 const path = require('path')
 const { spawn } = require('child_process')
 
-const mainConfig = require('./webpack.main.config')
-const rendererConfig = require('./webpack.renderer.config')
-const workersConfig = require('./webpack.workers.config')
+const ProcessLocalesPlugin = require('./ProcessLocalesPlugin')
 
 let electronProcess = null
 let manualRestart = null
-const remoteDebugging = !!(
-  process.argv[2] && process.argv[2] === '--remote-debug'
-)
+
+const remoteDebugging = process.argv.indexOf('--remote-debug') !== -1
+const web = process.argv.indexOf('--web') !== -1
+
+let mainConfig
+let rendererConfig
+let botGuardScriptConfig
+let webConfig
+let SHAKA_LOCALES_TO_BE_BUNDLED
+
+if (!web) {
+  mainConfig = require('./webpack.main.config')
+  rendererConfig = require('./webpack.renderer.config')
+  botGuardScriptConfig = require('./webpack.botGuardScript.config')
+
+  SHAKA_LOCALES_TO_BE_BUNDLED = rendererConfig.SHAKA_LOCALES_TO_BE_BUNDLED
+  delete rendererConfig.SHAKA_LOCALES_TO_BE_BUNDLED
+} else {
+  webConfig = require('./webpack.web.config')
+}
 
 if (remoteDebugging) {
   // disable dvtools open in electron
@@ -51,10 +66,12 @@ async function restartElectron() {
 
   electronProcess = spawn(electron, [
     path.join(__dirname, '../dist/main.js'),
-    // '--enable-logging', Enable to show logs from all electron processes
+    // '--enable-logging', // Enable to show logs from all electron processes
     remoteDebugging ? '--inspect=9222' : '',
-    remoteDebugging ? '--remote-debugging-port=9223' : '',
-  ])
+    remoteDebugging ? '--remote-debugging-port=9223' : ''
+  ],
+    // { stdio: 'inherit' } // required for logs to actually appear in the stdout
+  )
 
   electronProcess.on('exit', (code, _) => {
     if (code === relaunchExitCode) {
@@ -67,43 +84,52 @@ async function restartElectron() {
   })
 }
 
+/**
+ * @param {import('webpack').Compiler} compiler
+ * @param {WebpackDevServer} devServer
+ */
+function setupNotifyLocaleUpdate(compiler, devServer) {
+  const notifyLocaleChange = (updatedLocales) => {
+    devServer.sendMessage(devServer.webSocketServer.clients, 'freetube-locale-update', updatedLocales)
+  }
+
+  compiler.options.plugins
+    .filter(plugin => plugin instanceof ProcessLocalesPlugin)
+    .forEach((/** @type {ProcessLocalesPlugin} */plugin) => {
+      plugin.notifyLocaleChange = notifyLocaleChange
+    })
+}
+
+function startBotGuardScript() {
+  webpack(botGuardScriptConfig, (err) => {
+    if (err) console.error(err)
+
+    console.log(`\nCompiled ${botGuardScriptConfig.name} script!`)
+  })
+}
+
 function startMain() {
-  const webpackSetup = webpack([mainConfig, workersConfig])
+  const compiler = webpack(mainConfig)
+  const { name } = compiler
 
-  webpackSetup.compilers.forEach(compiler => {
-    const { name } = compiler
+  compiler.hooks.afterEmit.tap('afterEmit', async () => {
+    console.log(`\nCompiled ${name} script!`)
 
-    switch (name) {
-      case 'workers':
-        compiler.hooks.afterEmit.tap('afterEmit', async () => {
-          console.log(`\nCompiled ${name} script!`)
-          console.log(`\nWatching file changes for ${name} script...`)
-        })
-        break
-      case 'main':
-      default:
-        compiler.hooks.afterEmit.tap('afterEmit', async () => {
-          console.log(`\nCompiled ${name} script!`)
+    manualRestart = true
+    await restartElectron()
+    setTimeout(() => {
+      manualRestart = false
+    }, 2500)
 
-          manualRestart = true
-          await restartElectron()
-
-          setTimeout(() => {
-            manualRestart = false
-          }, 2500)
-
-          console.log(`\nWatching file changes for ${name} script...`)
-        })
-        break
-    }
+    console.log(`\nWatching file changes for ${name} script...`)
   })
 
-  webpackSetup.watch({
+  compiler.watch({
     aggregateTimeout: 500,
   },
-    err => {
-      if (err) console.error(err)
-    })
+  err => {
+    if (err) console.error(err)
+  })
 }
 
 function startRenderer(callback) {
@@ -116,12 +142,57 @@ function startRenderer(callback) {
   })
 
   const server = new WebpackDevServer({
+    static: [
+      {
+        directory: path.resolve(__dirname, '..', 'static'),
+        watch: {
+          ignored: [
+            /(dashFiles|storyboards)\/*/,
+            '/**/.DS_Store',
+            '**/static/locales/*'
+          ]
+        },
+        publicPath: '/static'
+      },
+      {
+        directory: path.resolve(__dirname, '..', 'node_modules', 'shaka-player', 'ui', 'locales'),
+        publicPath: '/static/shaka-player-locales',
+        watch: {
+          // Ignore everything that isn't one of the locales that we would bundle in production mode
+          ignored: `**/!(${SHAKA_LOCALES_TO_BE_BUNDLED.join('|')}).json`
+        }
+      }
+    ],
+    port
+  }, compiler)
+
+  server.startCallback(err => {
+    if (err) console.error(err)
+
+    setupNotifyLocaleUpdate(compiler, server)
+
+    callback()
+  })
+}
+
+function startWeb () {
+  const compiler = webpack(webConfig)
+  const { name } = compiler
+
+  compiler.hooks.afterEmit.tap('afterEmit', () => {
+    console.log(`\nCompiled ${name} script!`)
+    console.log(`\nWatching file changes for ${name} script...`)
+  })
+
+  const server = new WebpackDevServer({
+    open: true,
     static: {
-      directory: path.join(process.cwd(), 'static'),
+      directory: path.resolve(__dirname, '..', 'static'),
       watch: {
         ignored: [
           /(dashFiles|storyboards)\/*/,
           '/**/.DS_Store',
+          '**/static/locales/*'
         ]
       }
     },
@@ -131,8 +202,14 @@ function startRenderer(callback) {
   server.startCallback(err => {
     if (err) console.error(err)
 
-    callback()
+    setupNotifyLocaleUpdate(compiler, server)
   })
 }
-
-startRenderer(startMain)
+if (!web) {
+  startRenderer(() => {
+    startBotGuardScript()
+    startMain()
+  })
+} else {
+  startWeb()
+}

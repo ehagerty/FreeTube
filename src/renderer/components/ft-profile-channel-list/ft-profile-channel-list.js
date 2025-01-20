@@ -1,13 +1,15 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions } from 'vuex'
 
 import FtCard from '../../components/ft-card/ft-card.vue'
 import FtFlexBox from '../../components/ft-flex-box/ft-flex-box.vue'
 import FtChannelBubble from '../../components/ft-channel-bubble/ft-channel-bubble.vue'
 import FtButton from '../../components/ft-button/ft-button.vue'
-import FtPrompt from '../../components/ft-prompt/ft-prompt.vue'
+import FtPrompt from '../FtPrompt/FtPrompt.vue'
+import { deepCopy, showToast } from '../../helpers/utils'
+import { youtubeImageUrlToInvidious } from '../../helpers/api/invidious'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtProfileChannelList',
   components: {
     'ft-card': FtCard,
@@ -31,10 +33,9 @@ export default Vue.extend({
       showDeletePrompt: false,
       subscriptions: [],
       selectedLength: 0,
-      componentKey: 0,
       deletePromptValues: [
-        'yes',
-        'no'
+        'delete',
+        'cancel'
       ]
     }
   },
@@ -42,15 +43,14 @@ export default Vue.extend({
     backendPreference: function () {
       return this.$store.getters.getBackendPreference
     },
-    currentInvidiousInstance: function () {
-      return this.$store.getters.getCurrentInvidiousInstance
+    currentInvidiousInstanceUrl: function () {
+      return this.$store.getters.getCurrentInvidiousInstanceUrl
     },
     profileList: function () {
       return this.$store.getters.getProfileList
     },
     selectedText: function () {
-      const localeText = this.$t('Profile.$ selected')
-      return localeText.replace('$', this.selectedLength)
+      return this.$t('Profile.{number} selected', { number: this.selectedLength })
     },
     deletePromptMessage: function () {
       if (this.isMainProfile) {
@@ -61,93 +61,73 @@ export default Vue.extend({
     },
     deletePromptNames: function () {
       return [
-        this.$t('Yes'),
-        this.$t('No')
+        this.$t('Yes, Delete'),
+        this.$t('Cancel')
       ]
-    }
+    },
+    locale: function () {
+      return this.$i18n.locale
+    },
   },
   watch: {
     profile: function () {
-      this.subscriptions = JSON.parse(JSON.stringify(this.profile.subscriptions)).sort((a, b) => {
-        const nameA = a.name.toLowerCase()
-        const nameB = b.name.toLowerCase()
-        if (nameA < nameB) {
-          return -1
-        }
-        if (nameA > nameB) {
-          return 1
-        }
-        return 0
-      }).map((channel) => {
+      const subscriptions = deepCopy(this.profile.subscriptions).sort((a, b) => {
+        return a.name?.toLowerCase().localeCompare(b.name?.toLowerCase(), this.locale)
+      })
+      subscriptions.forEach((channel) => {
         if (this.backendPreference === 'invidious') {
-          channel.thumbnail = channel.thumbnail.replace('https://yt3.ggpht.com', `${this.currentInvidiousInstance}/ggpht/`)
+          channel.thumbnail = youtubeImageUrlToInvidious(channel.thumbnail, this.currentInvidiousInstanceUrl)
         }
         channel.selected = false
-        return channel
       })
+
+      this.subscriptions = subscriptions
+      this.selectNone()
     }
   },
   mounted: function () {
     if (typeof this.profile.subscriptions !== 'undefined') {
-      this.subscriptions = JSON.parse(JSON.stringify(this.profile.subscriptions)).sort((a, b) => {
-        const nameA = a.name.toLowerCase()
-        const nameB = b.name.toLowerCase()
-        if (nameA < nameB) {
-          return -1
-        }
-        if (nameA > nameB) {
-          return 1
-        }
-        return 0
-      }).map((channel) => {
+      const subscriptions = deepCopy(this.profile.subscriptions).sort((a, b) => {
+        return a.name?.toLowerCase().localeCompare(b.name?.toLowerCase(), this.locale)
+      })
+      subscriptions.forEach((channel) => {
         if (this.backendPreference === 'invidious') {
-          channel.thumbnail = channel.thumbnail.replace('https://yt3.ggpht.com', `${this.currentInvidiousInstance}/ggpht/`)
+          channel.thumbnail = youtubeImageUrlToInvidious(channel.thumbnail, this.currentInvidiousInstanceUrl)
         }
         channel.selected = false
-        return channel
       })
+      this.subscriptions = subscriptions
     }
   },
   methods: {
     displayDeletePrompt: function () {
       if (this.selectedLength === 0) {
-        this.showToast({
-          message: this.$t('Profile.No channel(s) have been selected')
-        })
+        showToast(this.$t('Profile.No channel(s) have been selected'))
       } else {
         this.showDeletePrompt = true
       }
     },
 
     handleDeletePromptClick: function (value) {
-      if (value !== 'no' && value !== null) {
+      if (value !== 'cancel' && value !== null) {
         if (this.isMainProfile) {
-          const channelsToRemove = this.subscriptions.filter((channel) => {
-            return channel.selected
-          })
-
-          this.subscriptions = this.subscriptions.filter((channel) => {
-            return !channel.selected
-          })
+          const channelsToRemove = this.subscriptions.filter((channel) => channel.selected)
+          this.subscriptions = this.subscriptions.filter((channel) => !channel.selected)
 
           this.profileList.forEach((x) => {
-            const profile = JSON.parse(JSON.stringify(x))
+            const profile = deepCopy(x)
             profile.subscriptions = profile.subscriptions.filter((channel) => {
-              const index = channelsToRemove.findIndex((y) => {
-                return y.id === channel.id
-              })
+              const index = channelsToRemove.findIndex((y) => y.id === channel.id)
 
               return index === -1
             })
             this.updateProfile(profile)
           })
 
-          this.showToast({
-            message: this.$t('Profile.Profile has been updated')
-          })
+          showToast(this.$t('Profile.Profile has been updated'))
           this.selectNone()
         } else {
-          const profile = JSON.parse(JSON.stringify(this.profile))
+          const profile = deepCopy(this.profile)
 
           this.subscriptions = this.subscriptions.filter((channel) => {
             return !channel.selected
@@ -158,9 +138,7 @@ export default Vue.extend({
 
           this.updateProfile(profile)
 
-          this.showToast({
-            message: this.$t('Profile.Profile has been updated')
-          })
+          showToast(this.$t('Profile.Profile has been updated'))
           this.selectNone()
         }
       }
@@ -169,9 +147,7 @@ export default Vue.extend({
 
     handleChannelClick: function (index) {
       this.subscriptions[index].selected = !this.subscriptions[index].selected
-      this.selectedLength = this.subscriptions.filter((channel) => {
-        return channel.selected
-      }).length
+      this.selectedLength = this.subscriptions.filter((channel) => channel.selected).length
     },
 
     selectAll: function () {
@@ -186,9 +162,7 @@ export default Vue.extend({
         return channel
       })
 
-      this.selectedLength = this.subscriptions.filter((channel) => {
-        return channel.selected
-      }).length
+      this.selectedLength = this.subscriptions.filter((channel) => channel.selected).length
     },
 
     selectNone: function () {
@@ -203,13 +177,10 @@ export default Vue.extend({
         return channel
       })
 
-      this.selectedLength = this.subscriptions.filter((channel) => {
-        return channel.selected
-      }).length
+      this.selectedLength = this.subscriptions.filter((channel) => channel.selected).length
     },
 
     ...mapActions([
-      'showToast',
       'updateProfile'
     ])
   }

@@ -1,5 +1,7 @@
 <template>
-  <div class="ft-card">
+  <div
+    class="ft-card"
+  >
     <slot />
   </div>
 </template>

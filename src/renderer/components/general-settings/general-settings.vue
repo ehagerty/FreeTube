@@ -1,11 +1,7 @@
 <template>
-  <details>
-    <summary>
-      <h3>
-        {{ $t("Settings.General Settings.General Settings") }}
-      </h3>
-    </summary>
-    <hr>
+  <ft-settings-section
+    :title="$t('Settings.General Settings.General Settings')"
+  >
     <div class="switchColumnGrid">
       <div class="switchColumn">
         <ft-toggle-switch
@@ -21,6 +17,13 @@
           :tooltip="$t('Tooltips.General Settings.Fallback to Non-Preferred Backend on Failure')"
           @change="updateBackendFallback"
         />
+        <ft-toggle-switch
+          :label="$t('Settings.General Settings.Auto Load Next Page.Label')"
+          :default-value="generalAutoLoadMorePaginatedItemsEnabled"
+          :compact="true"
+          :tooltip="$t('Settings.General Settings.Auto Load Next Page.Tooltip')"
+          @change="updateGeneralAutoLoadMorePaginatedItemsEnabled"
+        />
       </div>
       <div class="switchColumn">
         <ft-toggle-switch
@@ -35,6 +38,13 @@
           :compact="true"
           @change="updateEnableSearchSuggestions"
         />
+        <ft-toggle-switch
+          :label="$t('Settings.General Settings.Open Deep Links In New Window')"
+          :default-value="openDeepLinksInNewWindow"
+          :compact="true"
+          :tooltip="$t('Tooltips.General Settings.Open Deep Links In New Window')"
+          @change="updateOpenDeepLinksInNewWindow"
+        />
       </div>
     </div>
     <div class="switchGrid">
@@ -44,14 +54,15 @@
         :select-names="backendNames"
         :select-values="backendValues"
         :tooltip="$t('Tooltips.General Settings.Preferred API Backend')"
+        :icon="['fas', 'server']"
         @change="handlePreferredApiBackend"
       />
       <ft-select
-        v-if="false"
         :placeholder="$t('Settings.General Settings.Default Landing Page')"
         :value="landingPage"
         :select-names="defaultPageNames"
         :select-values="defaultPageValues"
+        :icon="['fas', 'location-dot']"
         @change="updateLandingPage"
       />
       <ft-select
@@ -59,6 +70,7 @@
         :value="listType"
         :select-names="viewTypeNames"
         :select-values="viewTypeValues"
+        :icon="listType === 'grid' ? ['fas', 'grip'] : ['fas', 'list']"
         @change="updateListType"
       />
       <ft-select
@@ -67,13 +79,16 @@
         :select-names="thumbnailTypeNames"
         :select-values="thumbnailTypeValues"
         :tooltip="$t('Tooltips.General Settings.Thumbnail Preference')"
-        @change="updateThumbnailPreference"
+        :icon="['fas', 'images']"
+        @change="handleThumbnailPreferenceChange"
       />
       <ft-select
         :placeholder="$t('Settings.General Settings.Locale Preference')"
         :value="currentLocale"
         :select-names="localeNames"
         :select-values="localeOptions"
+        :icon="['fas', 'language']"
+        is-locale-selector
         @change="updateCurrentLocale"
       />
       <ft-select
@@ -81,6 +96,7 @@
         :value="region"
         :select-names="regionNames"
         :select-values="regionValues"
+        :icon="['fas', 'globe']"
         :tooltip="$t('Tooltips.General Settings.Region for Trending')"
         @change="updateRegion"
       />
@@ -89,6 +105,7 @@
         :value="externalLinkHandling"
         :select-names="externalLinkHandlingNames"
         :select-values="externalLinkHandlingValues"
+        :icon="['fas', 'external-link-alt']"
         :tooltip="$t('Tooltips.General Settings.External Link Handling')"
         @change="updateExternalLinkHandling"
       />
@@ -96,7 +113,7 @@
     <div
       v-if="backendPreference === 'invidious' || backendFallback"
     >
-      <ft-flex-box class="generalSettingsFlexBox">
+      <ft-flex-box class="settingsFlexStart460px">
         <ft-input
           :placeholder="$t('Settings.General Settings.Current Invidious Instance')"
           :show-action-button="false"
@@ -120,7 +137,7 @@
         v-if="defaultInvidiousInstance !== ''"
         class="center"
       >
-        {{ $t('Settings.General Settings.The currently set default instance is $').replace('$', defaultInvidiousInstance) }}
+        {{ $t('Settings.General Settings.The currently set default instance is {instance}', { instance: defaultInvidiousInstance }) }}
       </p>
       <template v-else>
         <p class="center">
@@ -141,8 +158,8 @@
         />
       </ft-flex-box>
     </div>
-  </details>
+  </ft-settings-section>
 </template>
 
 <script src="./general-settings.js" />
-<style scoped lang="sass" src="./general-settings.sass" />
+<style scoped src="./general-settings.css" />

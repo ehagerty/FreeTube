@@ -1,7 +1,11 @@
 <template>
   <div
     class="bubblePadding"
-    @click="goToProfile"
+    tabindex="0"
+    role="button"
+    :aria-labelledby="sanitizedId"
+    @click="click"
+    @keydown.space.enter.prevent="click"
   >
     <div
       class="bubble"
@@ -11,8 +15,11 @@
         {{ profileInitial }}
       </div>
     </div>
-    <div class="profileName">
-      {{ profileName }}
+    <div
+      :id="sanitizedId"
+      class="profileName"
+    >
+      {{ translatedProfileName }}
     </div>
   </div>
 </template>

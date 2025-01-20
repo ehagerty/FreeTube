@@ -1,13 +1,16 @@
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { mapActions } from 'vuex'
 import FtCard from '../../components/ft-card/ft-card.vue'
-import FtPrompt from '../../components/ft-prompt/ft-prompt.vue'
+import FtPrompt from '../FtPrompt/FtPrompt.vue'
 import FtFlexBox from '../../components/ft-flex-box/ft-flex-box.vue'
 import FtInput from '../../components/ft-input/ft-input.vue'
 import FtButton from '../../components/ft-button/ft-button.vue'
 import { MAIN_PROFILE_ID } from '../../../constants'
+import { calculateColorLuminance, colors } from '../../helpers/colors'
+import { showToast } from '../../helpers/utils'
+import { getFirstCharacter } from '../../helpers/strings'
 
-export default Vue.extend({
+export default defineComponent({
   name: 'FtProfileEdit',
   components: {
     'ft-card': FtCard,
@@ -17,15 +20,20 @@ export default Vue.extend({
     'ft-button': FtButton
   },
   props: {
-    profile: {
-      type: Object,
+    isMainProfile: {
+      type: Boolean,
       required: true
     },
     isNew: {
       type: Boolean,
       required: true
+    },
+    profile: {
+      type: Object,
+      required: true
     }
   },
+  emits: ['new-profile-created', 'profile-deleted'],
   data: function () {
     return {
       showDeletePrompt: false,
@@ -33,25 +41,23 @@ export default Vue.extend({
       profileName: '',
       profileBgColor: '',
       profileTextColor: '',
-      profileSubscriptions: [],
       deletePromptValues: [
-        'yes',
-        'no'
+        'delete',
+        'cancel'
       ]
     }
   },
   computed: {
-    isMainProfile: function () {
-      return this.profileId === MAIN_PROFILE_ID
+    locale: function () {
+      return this.$i18n.locale
     },
     colorValues: function () {
-      return this.$store.getters.getColorValues
+      return colors.map(color => color.value)
     },
     profileInitial: function () {
-      return this?.profileName?.length > 0 ? Array.from(this.profileName)[0].toUpperCase() : ''
-    },
-    profileList: function () {
-      return this.$store.getters.getProfileList
+      return this.profileName
+        ? getFirstCharacter(this.translatedProfileName, this.locale).toUpperCase()
+        : ''
     },
     activeProfile: function () {
       return this.$store.getters.getActiveProfile
@@ -64,18 +70,27 @@ export default Vue.extend({
     },
     deletePromptNames: function () {
       return [
-        this.$t('Yes'),
-        this.$t('No')
+        this.$t('Yes, Delete'),
+        this.$t('Cancel')
       ]
+    },
+    editOrCreateProfileLabel: function () {
+      return this.isNew ? this.$t('Profile.Create Profile') : this.$t('Profile.Edit Profile')
+    },
+    editOrCreateProfileNameLabel: function () {
+      return this.isNew ? this.$t('Profile.Create Profile Name') : this.$t('Profile.Edit Profile Name')
+    },
+    translatedProfileName: function () {
+      return this.isMainProfile ? this.$t('Profile.All Channels') : this.profileName
     }
   },
   watch: {
-    profileBgColor: async function (val) {
-      this.profileTextColor = await this.calculateColorLuminance(val)
+    profileBgColor: function (val) {
+      this.profileTextColor = calculateColorLuminance(val)
     }
   },
   created: function () {
-    this.profileId = this.$route.params.id
+    this.profileId = this.profile._id
     this.profileName = this.profile.name
     this.profileBgColor = this.profile.bgColor
     this.profileTextColor = this.profile.textColor
@@ -86,7 +101,7 @@ export default Vue.extend({
     },
 
     handleDeletePrompt: function (response) {
-      if (response === 'yes') {
+      if (response === 'delete') {
         this.deleteProfile()
       } else {
         this.showDeletePrompt = false
@@ -95,9 +110,7 @@ export default Vue.extend({
 
     saveProfile: function () {
       if (this.profileName === '') {
-        this.showToast({
-          message: this.$t('Profile.Your profile name cannot be empty')
-        })
+        showToast(this.$t('Profile.Your profile name cannot be empty'))
         return
       }
       const profile = {
@@ -111,30 +124,20 @@ export default Vue.extend({
         profile._id = this.profileId
       }
 
-      console.log(profile)
-
       if (this.isNew) {
         this.createProfile(profile)
-        this.showToast({
-          message: this.$t('Profile.Profile has been created')
-        })
-        this.$router.push({
-          path: '/settings/profile/'
-        })
+        showToast(this.$t('Profile.Profile has been created'))
+        this.$emit('new-profile-created')
       } else {
         this.updateProfile(profile)
-        this.showToast({
-          message: this.$t('Profile.Profile has been updated')
-        })
+        showToast(this.$t('Profile.Profile has been updated'))
       }
     },
 
     setDefaultProfile: function () {
       this.updateDefaultProfile(this.profileId)
-      const message = this.$t('Profile.Your default profile has been set to $').replace('$', this.profileName)
-      this.showToast({
-        message: message
-      })
+      const message = this.$t('Profile.Your default profile has been set to {profile}', { profile: this.translatedProfileName })
+      showToast(message)
     },
 
     deleteProfile: function () {
@@ -144,29 +147,23 @@ export default Vue.extend({
 
       this.removeProfile(this.profileId)
 
-      const message = this.$t('Profile.Removed $ from your profiles').replace('$', this.profileName)
-      this.showToast({ message })
+      const message = this.$t('Profile.Removed {profile} from your profiles', { profile: this.translatedProfileName })
+      showToast(message)
 
       if (this.defaultProfile === this.profileId) {
         this.updateDefaultProfile(MAIN_PROFILE_ID)
-        this.showToast({
-          message: this.$t('Profile.Your default profile has been changed to your primary profile')
-        })
+        showToast(this.$t('Profile.Your default profile has been changed to your primary profile'))
       }
 
-      this.$router.push({
-        path: '/settings/profile/'
-      })
+      this.$emit('profile-deleted')
     },
 
     ...mapActions([
-      'showToast',
       'createProfile',
       'updateProfile',
       'removeProfile',
       'updateDefaultProfile',
-      'updateActiveProfile',
-      'calculateColorLuminance'
+      'updateActiveProfile'
     ])
   }
 })
